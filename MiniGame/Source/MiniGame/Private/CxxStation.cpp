@@ -44,10 +44,6 @@ void ACxxStation::SwitchOutlineEffect()
 		isHighlighted = !isHighlighted;
 		comp->SetRenderCustomDepth(isHighlighted);
 	}
-	if(this->GetName() == "BP_CxxResidentialArea_C_3")
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Switch Name: %s"), *this->GetName());
-	}
 }
 
 EStationType ACxxStation::GetStationType()

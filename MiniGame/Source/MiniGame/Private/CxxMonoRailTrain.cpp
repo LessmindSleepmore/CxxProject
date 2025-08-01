@@ -67,76 +67,78 @@ void ACxxMonoRailTrain::MovementControl(float DeltaTime)
 
 FVector ACxxMonoRailTrain::GetNextPosition(float DeltaTime)
 {
-	float curFrameCanMovingDist = DeltaTime * speed;
-	curFrameCanMovingDist += curBlockMovedDist;
-	float curMovingDist = 0;
-	bool bFindNextPoint = false;
-	bool bFindIsStation = false;
-	while(!bFindIsStation && !bFindNextPoint)
-	{
-		for(int i = curPointIdx;
-			bCurIsForward?i < railLine->railSegments[curSegmentIdx]->points.Num() - 1:i > 0;
-			bCurIsForward?i++:i--)
-		{
-			FVector prePoint = railLine->railSegments[curSegmentIdx]->points[i];
-			FVector nextPoint = railLine->railSegments[curSegmentIdx]->points[bCurIsForward?i+1:i-1];
-			float curBlockLengthSum = (prePoint - nextPoint).Size();
-			// 如果当前Block的移动距离会导致已移动大于可移动距离
-			if(curMovingDist + curBlockLengthSum > curFrameCanMovingDist)
-			{
-				curPointIdx = i;
-				curBlockMovedDist = curFrameCanMovingDist - curMovingDist;
-				bFindNextPoint = true;
-				break;
-			}
-			curMovingDist += curBlockLengthSum;
-		}
-		// 说明到站点了
-		if(!bFindNextPoint)
-		{
-			// 判断是否是终点站,终点站就反转
-			if((bCurIsForward && curSegmentIdx == railLine->railSegments.Num() - 2) ||
-				(!bCurIsForward && curSegmentIdx == 1))
-			{
-				curSegmentIdx = bCurIsForward?railLine->railSegments.Num() - 2:1;
-				curPointIdx = bCurIsForward?railLine->railSegments[curSegmentIdx]->points.Num() - 1:0;
-				bCurIsForward = !bCurIsForward;
-				curBlockMovedDist = 0;
-				bInStation = true;
-			}
-			// 反之继续走到下一站
-			else
-			{
-				bCurIsForward?curSegmentIdx++:curSegmentIdx--;
-				bCurIsForward?curPointIdx = 0:curPointIdx = railLine->railSegments[curSegmentIdx]->points.Num() - 1;
-				curBlockMovedDist = 0;
-				bInStation = true;
-			}
-		}
-	}
-
-	if (bFindIsStation)
-	{
-		return railLine->railSegments[curSegmentIdx]->points[curPointIdx];
-	}
-	if (bFindNextPoint)
-	{
-		FVector blockVec = railLine->railSegments[curSegmentIdx]->points[bCurIsForward?curPointIdx + 1:curPointIdx - 1]
-					- railLine->railSegments[curSegmentIdx]->points[curPointIdx];
-		return railLine->railSegments[curSegmentIdx]->points[curPointIdx] + blockVec * (curBlockMovedDist / blockVec.Size());
-	}
+	// float curFrameCanMovingDist = DeltaTime * speed;
+	// curFrameCanMovingDist += curBlockMovedDist;
+	// float curMovingDist = 0;
+	// bool bFindNextPoint = false;
+	// bool bFindIsStation = false;
+	// while(!bFindIsStation && !bFindNextPoint)
+	// {
+	// 	for(int i = curPointIdx;
+	// 		bCurIsForward?i < railLine->railSegments[curSegmentIdx]->points.Num() - 1:i > 0;
+	// 		bCurIsForward?i++:i--)
+	// 	{
+	// 		FVector prePoint = railLine->railSegments[curSegmentIdx]->points[i];
+	// 		FVector nextPoint = railLine->railSegments[curSegmentIdx]->points[bCurIsForward?i+1:i-1];
+	// 		float curBlockLengthSum = (prePoint - nextPoint).Size();
+	// 		// 如果当前Block的移动距离会导致已移动大于可移动距离
+	// 		if(curMovingDist + curBlockLengthSum > curFrameCanMovingDist)
+	// 		{
+	// 			curPointIdx = i;
+	// 			curBlockMovedDist = curFrameCanMovingDist - curMovingDist;
+	// 			bFindNextPoint = true;
+	// 			break;
+	// 		}
+	// 		curMovingDist += curBlockLengthSum;
+	// 	}
+	// 	// 说明到站点了
+	// 	if(!bFindNextPoint)
+	// 	{
+	// 		// 判断是否是终点站,终点站就反转
+	// 		if((bCurIsForward && curSegmentIdx == railLine->railSegments.Num() - 2) ||
+	// 			(!bCurIsForward && curSegmentIdx == 1))
+	// 		{
+	// 			curSegmentIdx = bCurIsForward?railLine->railSegments.Num() - 2:1;
+	// 			curPointIdx = bCurIsForward?railLine->railSegments[curSegmentIdx]->points.Num() - 1:0;
+	// 			bCurIsForward = !bCurIsForward;
+	// 			curBlockMovedDist = 0;
+	// 			bInStation = true;
+	// 		}
+	// 		// 反之继续走到下一站
+	// 		else
+	// 		{
+	// 			bCurIsForward?curSegmentIdx++:curSegmentIdx--;
+	// 			bCurIsForward?curPointIdx = 0:curPointIdx = railLine->railSegments[curSegmentIdx]->points.Num() - 1;
+	// 			curBlockMovedDist = 0;
+	// 			bInStation = true;
+	// 		}
+	// 	}
+	// }
+	//
+	// if (bFindIsStation)
+	// {
+	// 	return railLine->railSegments[curSegmentIdx]->points[curPointIdx];
+	// }
+	// if (bFindNextPoint)
+	// {
+	// 	FVector blockVec = railLine->railSegments[curSegmentIdx]->points[bCurIsForward?curPointIdx + 1:curPointIdx - 1]
+	// 				- railLine->railSegments[curSegmentIdx]->points[curPointIdx];
+	// 	return railLine->railSegments[curSegmentIdx]->points[curPointIdx] + blockVec * (curBlockMovedDist / blockVec.Size());
+	// }
 	return FVector(0,0,0);
 }
 
 FVector ACxxMonoRailTrain::GetNextRotation()
 {
 	// 插值当前的旋转
-	FVector tangentA = railLine->railSegments[curSegmentIdx]->tangents[curPointIdx];
-	FVector tangentB = railLine->railSegments[curSegmentIdx]->tangents[bCurIsForward?curPointIdx + 1:curPointIdx - 1];
-	float blockSize = (railLine->railSegments[curSegmentIdx]->points[bCurIsForward?curPointIdx + 1:curPointIdx - 1]
-					- railLine->railSegments[curSegmentIdx]->points[curPointIdx]).Size();
-	return bCurIsForward?FMath::Lerp(tangentA, tangentB, curBlockMovedDist / blockSize):
-						FMath::Lerp(tangentA, tangentB, curBlockMovedDist / blockSize);
+	// FVector tangentA = railLine->railSegments[curSegmentIdx]->tangents[curPointIdx];
+	// FVector tangentB = railLine->railSegments[curSegmentIdx]->tangents[bCurIsForward?curPointIdx + 1:curPointIdx - 1];
+	// float blockSize = (railLine->railSegments[curSegmentIdx]->points[bCurIsForward?curPointIdx + 1:curPointIdx - 1]
+	// 				- railLine->railSegments[curSegmentIdx]->points[curPointIdx]).Size();
+	// return bCurIsForward?FMath::Lerp(tangentA, tangentB, curBlockMovedDist / blockSize):
+	// 					FMath::Lerp(tangentA, tangentB, curBlockMovedDist / blockSize);
+
+	return FVector(0,0,0);
 }
 
 void ACxxMonoRailTrain::ShowPassengerStatus()
@@ -171,54 +173,54 @@ void ACxxMonoRailTrain::ShowPassengerStatus()
 
 void ACxxMonoRailTrain::BoardingAndAlighting()
 {
-	ACxxStation* curStation = bCurIsForward?railLine->railSegments[curSegmentIdx]->stationA:
-										railLine->railSegments[curSegmentIdx]->stationB;
-	bool bBoardingAndAlighting = false;
-	// 先下车
-	for(int i = passengers.Num() - 1; i >= 0; i--)
-	{
-		if(passengers[i]->targetStationType == curStation->GetStationType())
-		{
-			passengers.RemoveAt(i);
-			bBoardingAndAlighting = true;
-			// 加分
-			if(dispatchManager)
-			{
-				dispatchManager->AddScore(10);
-			}
-			break;
-		}
-	}
-
-	if(bBoardingAndAlighting) return;
-
-	// 再上车
-	if(passengers.Num() < capacity)
-	{
-		for(int i = 0; i < curStation->passengers.Num(); i++)
-		{
-			TArray<EStationType> path;
-			// 生成后续的站点类型
-			for(int j = curSegmentIdx;
-				bCurIsForward?j < railLine->railSegments.Num() - 1:j > 0;
-				bCurIsForward?j++:j--)
-			{
-				path.Add(bCurIsForward?railLine->railSegments[j]->stationB->GetStationType():
-										railLine->railSegments[j]->stationA->GetStationType());
-			}
-			
-			if(curStation->passengers[i]->IsBoardingRequired(path))
-			{
-				passengers.Add(curStation->passengers[i]);
-				curStation->passengers.RemoveAt(i);
-				bBoardingAndAlighting = true;
-				break;
-			}
-		}
-	}
-
-	if(bBoardingAndAlighting) return;
-	bInStation = false;
-	inStationTime = 0;
+	// // ACxxStation* curStation = bCurIsForward?railLine->railSegments[curSegmentIdx]->stationA:
+	// // 									railLine->railSegments[curSegmentIdx]->stationB;
+	// bool bBoardingAndAlighting = false;
+	// // 先下车
+	// for(int i = passengers.Num() - 1; i >= 0; i--)
+	// {
+	// 	if(passengers[i]->targetStationType == curStation->GetStationType())
+	// 	{
+	// 		passengers.RemoveAt(i);
+	// 		bBoardingAndAlighting = true;
+	// 		// 加分
+	// 		if(dispatchManager)
+	// 		{
+	// 			dispatchManager->AddScore(10);
+	// 		}
+	// 		break;
+	// 	}
+	// }
+	//
+	// if(bBoardingAndAlighting) return;
+	//
+	// // 再上车
+	// if(passengers.Num() < capacity)
+	// {
+	// 	for(int i = 0; i < curStation->passengers.Num(); i++)
+	// 	{
+	// 		TArray<EStationType> path;
+	// 		// 生成后续的站点类型
+	// 		for(int j = curSegmentIdx;
+	// 			bCurIsForward?j < railLine->railSegments.Num() - 1:j > 0;
+	// 			bCurIsForward?j++:j--)
+	// 		{
+	// 			// path.Add(bCurIsForward?railLine->railSegments[j]->stationB->GetStationType():
+	// 			// 						railLine->railSegments[j]->stationA->GetStationType());
+	// 		}
+	// 		
+	// 		if(curStation->passengers[i]->IsBoardingRequired(path))
+	// 		{
+	// 			passengers.Add(curStation->passengers[i]);
+	// 			curStation->passengers.RemoveAt(i);
+	// 			bBoardingAndAlighting = true;
+	// 			break;
+	// 		}
+	// 	}
+	// }
+	//
+	// if(bBoardingAndAlighting) return;
+	// bInStation = false;
+	// inStationTime = 0;
 }
 
