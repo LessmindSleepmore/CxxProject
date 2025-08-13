@@ -20,39 +20,6 @@ class ACxxMonoRailTrain;
 static int64 componentsCount = 0;
 static int GetComponentsCount() { return componentsCount++; }
 
-// UCLASS()
-// class UCxxRailSegment : public UObject
-// {
-// public:
-// 	GENERATED_BODY()
-// 	UPROPERTY() TArray<FVector> points;
-// 	UPROPERTY() TArray<FVector> tangents;
-// 	UPROPERTY() TArray<int> pointType; // 0:起点段和终点段（不可编辑） 1:手动插入的点（可编辑） 3:自动生成的点(不可编辑)
-// 	// UPROPERTY() bool bEndIsStation;
-// 	UPROPERTY() ACxxStation* stationA;
-// 	UPROPERTY() ACxxStation* stationB;
-// 	// UPROPERTY() FVector stationBUsedDir = FVector::ZeroVector;
-// 	// UPROPERTY() FVector stationAUsedDir = FVector::ZeroVector;
-// 	
-//
-// 	void init(ACxxStation* station)
-// 	{
-// 		points.Empty();
-// 		stationA = station;
-// 		stationB = nullptr;
-// 		// bEndIsStation = false;
-// 	}
-//
-// 	void init(ACxxStation* tStationA, ACxxStation* tStationB)
-// 	{
-// 		points.Empty();
-// 		stationA = tStationA;
-// 		stationB = tStationB;
-// 		// bEndIsStation = false;
-// 	}
-// };
-
-
 UCLASS()
 class MINIGAME_API ACxxRailLine : public AActor
 {
@@ -62,66 +29,60 @@ public:
 	UPROPERTY(EditAnywhere) FString railLineName;
 	UPROPERTY(EditAnywhere) TArray<ACxxStation*> stations;
 	UPROPERTY(EditAnywhere) TArray<ACxxMonoRailTrain*> trains;
-	// UPROPERTY(EditAnywhere) TArray<bool> bStationArrowDircArray;
-	// UPROPERTY(EditAnywhere) FVector mousePos;
+
 	UPROPERTY(EditAnywhere) TArray<UCxxRailLineSegment*> railSegments;
 	UPROPERTY(EditAnywhere) UCxxPathControlPoint* curSelectedPoint = nullptr;
-	UPROPERTY(EditAnywhere) float railOutLength = 200.;
-	// UPROPERTY(EditAnywhere) FColor railLineColor = FColor::Green;
-	// UPROPERTY(EditAnywhere) int insertRailPointNum = 20; // TODO:优化为动态计算插值数量
-	UPROPERTY(EditAnywhere) float tangentIntensity = 300;
-	// UPROPERTY(EditAnywhere) bool isEdit = false;
+	UPROPERTY(EditAnywhere) float railOutLength = 1000.;
+	
+	UPROPERTY(EditAnywhere) float tangentIntensity = 900;
+
 	UPROPERTY(EditAnywhere) UStaticMesh* railLineBaseMesh;
 	UPROPERTY(EditAnywhere) UStaticMesh* railLinePillarMesh;
-	UPROPERTY(EditAnywhere) float pillarIntervalDist = 180.;
+	UPROPERTY(EditAnywhere) float pillarIntervalDist = 1300.;
 
 	UPROPERTY() USceneComponent* root = nullptr;
-	// 轨道铁轨 轨道支撑柱
+
+	// 环线
+	UPROPERTY(EditAnywhere) ACxxStation* ringLineStation = nullptr;
+	UPROPERTY(EditAnywhere) UCxxPathControlPoint* ringLinePoint = nullptr;
+	UPROPERTY(EditAnywhere) UCxxRailLineSegment* ringLineSegment = nullptr;
+
+	// point
+	UPROPERTY(EditAnywhere) UClass* movementComponentClass = nullptr;
+	UPROPERTY(EditAnywhere) UClass* tangentComponentAClass = nullptr;
+	UPROPERTY(EditAnywhere) UClass* tangentComponentBClass = nullptr;
 	UPROPERTY(EditAnywhere) UClass* railLineBaseClass;
-	UPROPERTY(EditAnywhere) UClass* railLinePillarClass;
+	UPROPERTY(EditAnywhere) UClass* railLinePillarBaseClass;
+	UPROPERTY(EditAnywhere) UClass* railLinePillarRepeatClass;
+	void Init(UClass* m1, UClass* t1, UClass* t2, UClass* b, UClass* pb, UClass* pr);
 
 	// 编辑模式
 	UPROPERTY(EditAnywhere) bool bIsEdit = false;
-	// UPROPERTY(EditAnywhere) UCxxRailSegment* curEditSegment = nullptr;
-	// UPROPERTY(EditAnywhere) FVector mousePosition;
-	// UPROPERTY(EditAnywhere) UCxxRailSegment* curEditSegment = nullptr;
-	// mesh名称获取Seg对象
-	// UPROPERTY() TMap<UStaticMeshComponent*, UCxxRailSegment*> meshCompName2Seg;
-
-	// 轨道段模型
-	// UPROPERTY(EditAnywhere) TArray<UStaticMeshComponent*> railLineMeshComponents;
 	bool bIsHighlighted = false;
-	
-	// UPROPERTY(EditAnywhere) UClass* trainClass;
 	
 	// Sets default values for this actor's properties
 	ACxxRailLine();
 
 	void Init(FString name);
-	// void ProceeEndWithMouse(UCxxRailSegment* seg, UCxxRailSegment* preSeg);
-	// void ProceeEndWithStation(UCxxRailSegment* seg, int segIdx);
-	// void GenerateInterPoint(UCxxRailSegment* seg, int startPointIdx, FVector startPointTangent,
-		// int endPointIdx, FVector endPointTangent);
-	// void UpdataSegment(UCxxRailSegment* seg);
-	// void FinishEdit();
+
 	void FinishedEditRailLineFromStation();
-	// void VisiablePointAndTangent();
-	// void DestroyLine();
-	// bool IsCurSelectedPointValid();
+	
 	TArray<UCxxRailLineSegment*> IsCurSelectedPointNeighbor(ACxxStation* station);
 	UCxxPathControlPoint* GetPointFromStation(ACxxStation* station);
 	UCxxRailLineSegment* GetSegmentFromMesh(USplineMeshComponent* mesh);
 
 	// 线路编辑
 	UCxxPathControlPoint* AddStation(ACxxStation* station, bool bIsArrowDir);
+	UCxxPathControlPoint* AddRingLineStation(ACxxStation* station, UCxxPathControlPoint* point1, UCxxPathControlPoint* point2);
+	UCxxPathControlPoint* DeleteRingLineStation(ACxxStation* station);
 	UCxxPathControlPoint* DeleteStation(ACxxStation* station);
-	// int DeleteStation(ACxxStation* station);
-	
-	int debugCount = 0;
 
 	// recode
 	UPROPERTY(VisibleAnywhere) TArray<UCxxPathControlPoint*> controlPoints;
 
+	// 生成路线图
+	TArray<ACxxStation*> GetNeighborStations(ACxxStation* station);
+	
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -129,10 +90,7 @@ protected:
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
+	void SwitchHightLightEffect(bool bVisiblePoint);
 
-	// void DrawVisableLine();
-	void UpdateRailLine();
-	// void UpdateRailLineSegmentWithMouseLocation(UCxxRailSegment* seg, FVector mouseLocation);
-	void SetRailColor(FColor color);
-	void SwitchHightLightEffect();
+	UPROPERTY(EditAnywhere) bool bIsRingLine = false;
 };

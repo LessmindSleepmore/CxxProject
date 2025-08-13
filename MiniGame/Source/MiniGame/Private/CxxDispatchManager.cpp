@@ -7,6 +7,75 @@
 #include "Components/CanvasPanelSlot.h"
 #include "Kismet/GameplayStatics.h"
 
+void ACxxDispatchManager::GenerateRailLineGraph()
+{
+	//BFS生成线路图 TODO:这里的逻辑可以优化
+	for(auto station:stationArray)
+	{
+		for(auto type:stationType)
+		{
+			if(station->GetStationType() == type) continue;
+			TArray<ACxxStation*>* pathArray = nullptr;
+			
+			switch (type)
+			{
+			case EStationType::BusinessDistrict:
+				pathArray = &(station->businessDistrictPath);
+				break;
+			case EStationType::ResidentialArea:
+				pathArray = &(station->residentialAreaPath);
+				break;
+			case EStationType::CulturalArea:
+				pathArray = &(station->culturalAreaPath);
+				break;
+			case EStationType::RecreationalArea:
+				pathArray = &(station->recreationalAreaPath);
+				break;
+			default:
+				break;
+			}
+
+			if(!pathArray) break;
+			if(!pathArray->IsEmpty()) pathArray->Empty();
+
+			TArray<ACxxStation*> visited;
+			TArray<ACxxStation*> queue;
+			TMap<ACxxStation*, ACxxStation*> predecessors;
+			visited.Add(station);
+			queue.Add(station);
+			while(!queue.IsEmpty())
+			{
+				ACxxStation* curStation = queue[0];
+				queue.RemoveAt(0);
+				if(curStation->GetStationType() == type)
+				{
+					// 如果找到了目标站点，保存路径
+					TArray<ACxxStation*> path;
+					ACxxStation* tStation = curStation;
+					while (tStation)
+					{
+						pathArray->Insert(tStation, 0);
+						tStation = predecessors.Find(tStation)?*predecessors.Find(tStation):nullptr;
+					}
+					break;
+				}
+				// 获取当前station的邻居station
+				for(auto line:railLines)
+				{
+					if(!line->stations.Contains(curStation)) continue;
+					for(auto neighbor:line->GetNeighborStations(curStation))
+					{
+						if(visited.Contains(neighbor)) continue;
+						visited.Add(neighbor);
+						queue.Add(neighbor);
+						predecessors.Add(neighbor, curStation);
+					}
+				}
+			}
+		}
+	}
+}
+
 // Sets default values
 ACxxDispatchManager::ACxxDispatchManager()
 {
@@ -14,25 +83,36 @@ ACxxDispatchManager::ACxxDispatchManager()
 	PrimaryActorTick.bCanEverTick = true;
 
 	// 获取列车Actor
-	static ConstructorHelpers::FObjectFinder<UBlueprint> trainActorFinder(
-	TEXT("/Script/Engine.Blueprint'/Game/Assets/Actor/Train/BP_CxxTrain.BP_CxxTrain'"));
-	if (trainActorFinder.Succeeded())
-	{
-		trainClass = trainActorFinder.Object->GeneratedClass;
-	}
-
-	static ConstructorHelpers::FObjectFinder<UBlueprint> HubFinder(
-	TEXT("/Script/UMGEditor.WidgetBlueprint'/Game/Assets/HUD/GameWinHUD.GameWinHUD'"));
-	if (HubFinder.Succeeded())
-	{
-		HubClass = HubFinder.Object->GeneratedClass;
-	}
+	// static ConstructorHelpers::FObjectFinder<UBlueprint> trainActorFinder(
+	// TEXT("/Script/Engine.Blueprint'/Game/Assets/Actor/Train/BP_CxxTrain.BP_CxxTrain'"));
+	// if (trainActorFinder.Succeeded())
+	// {
+	// 	trainClass = trainActorFinder.Object->GeneratedClass;
+	// }
+	//
+	// static ConstructorHelpers::FObjectFinder<UBlueprint> HubFinder(
+	// TEXT("/Script/UMGEditor.WidgetBlueprint'/Game/Assets/HUD/GameWinHUD.GameWinHUD'"));
+	// if (HubFinder.Succeeded())
+	// {
+	// 	HubClass = HubFinder.Object->GeneratedClass;
+	// }
 }
 
 void ACxxDispatchManager::AddScore(int s)
 {
 	score += s;
-	scoreText->SetText(FText::FromString("Score: " + FString::FromInt(score)));
+	todayScore += s;
+	scoreText->SetText(FText::FromString(TEXT("客流量: ") + FString::FromInt(score) + TEXT(" k")));
+}
+
+int ACxxDispatchManager::GetScore()
+{
+	return score;
+}
+
+int ACxxDispatchManager::GetToDayScore()
+{
+	return todayScore;
 }
 
 void ACxxDispatchManager::HiddenUI()
@@ -64,6 +144,7 @@ void ACxxDispatchManager::SplitSegment()
 	}
 	// 创建一个手动点，转到操作手动点的逻辑
 	UCxxPathControlPoint* manualPoint = NewObject<UCxxPathControlPoint>(curSelectedRailLine);
+	manualPoint->Init(movementComponentClass, tangentComponentAClass, tangentComponentBClass);
 	manualPoint->RegisterComponent();
 	curSelectedRailLine->controlPoints.Add(manualPoint);
 
@@ -72,8 +153,8 @@ void ACxxDispatchManager::SplitSegment()
 	
 	manualPoint->Init(FVector::Zero(), FVector(1,0,0), PointType::ManualPoint, curSelectedSegment, seg);
 	curSelectedSegment->endPoint->SetSegment(seg, curSelectedSegment->endPoint->nextSegment);
-	seg->Init(manualPoint, curSelectedSegment->endPoint);
-	curSelectedSegment->Init(curSelectedSegment->startPoint, manualPoint);
+	seg->Init(manualPoint, curSelectedSegment->endPoint, 1300, railLineBaseClass, railLinePillarBaseClass, railLinePillarRepeatClass);
+	curSelectedSegment->Init(curSelectedSegment->startPoint, manualPoint, 1300, railLineBaseClass, railLinePillarBaseClass, railLinePillarRepeatClass);
 	curSelectedRailLine->railSegments.Add(seg);
 
 	curSelectedSegment = nullptr;
@@ -87,60 +168,59 @@ void ACxxDispatchManager::BeginPlay()
 	Super::BeginPlay();
 	// TestFuncGetAllStation();
 	CreateHUD();
+	bBeginPlay = true;
 }
 
 // Called every frame
 void ACxxDispatchManager::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	// if(bIsDrawRailLine)
-	// {
-	// 	UpdataTickOperate();
-	// }
-	// CreateCxxPassenger(DeltaTime);
-	// if(bIsSelectRail)
-	// {
-	// 	UpdateCurCollisionRail();
-	// 	MonitorEditRailLineInput();
-	// }
 	
 	if(bIsEditRail)
 	{
-		// UpdataMouseLocation();
+		if (bIsAddTrain) bIsAddTrain = false;
 		// 创建
 		if(bIsCreateRail)
 		{
-			// if(!bInitRailLine)
-			// {
-			SwapRailLineActor(createStation, bCreateStationIsArrowDir);
-			lastStation = createStation; // 避免直接被删除掉
-			bIsCreateRail = false;
-			bIsSelectRail = true;
-			operatorName = "movement";
-			curSelectedStation = nullptr;
-			// 设置编辑UI可见性,并设置线路名称
-			editCanvasPanel->SetVisibility(ESlateVisibility::Visible);
-			if(curSelectedRailLine && railNameTextBlock)
+			if (railNum > 0)
 			{
-				railNameTextBlock->SetText(FText::FromString(curSelectedRailLine->railLineName));
+				SwapRailLineActor(createStation, bCreateStationIsArrowDir);
+				lastStation = createStation; // 避免直接被删除掉
+				bIsSelectRail = true;
+				operatorName = "movement";
+				curSelectedStation = nullptr;
+				// 设置编辑UI可见性,并设置线路名称
+				editCanvasPanel->SetVisibility(ESlateVisibility::Visible);
+				if(curSelectedRailLine && railNameTextBlock)
+				{
+					railNameTextBlock->SetText(FText::FromString(curSelectedRailLine->railLineName));
+				}
+				// 减少可用线路
+				railNum--;
+			}else
+			{
+				// TODO:提示没有可用线路 
+				UE_LOG(LogTemp, Error, TEXT("no rail"));
 			}
-			// }
-			// EditRailFromStation();
-			// CreateInputProcess();
+			bIsCreateRail = false;
 		}
 		else if(bIsSelectRail)
 		{
-			// UpdataButtonLocation();
 			ModifyInputProcess();
+			UpdateButtonAndIcon();
 			// 如果选择站点
 			if(curSelectedStation)
 			{
-				// // 初始化一下当前段
-				// stationIdx = curSelectedRailLine->stations.Find(curSelectedStation);
-				// int idx = curSelectedRailLine->stations.Find(curSelectedStation);
-				// curEditSegment = idx == 0?curSelectedRailLine->railSegments[0]:curSelectedRailLine->railSegments[idx - 1];
-				// EditRailFromStation();
-				curSelectedPoint = curSelectedRailLine->DeleteStation(curSelectedStation);
+				operatorName = "movement";
+				if(curSelectedRailLine->bIsRingLine && curSelectedStation == curSelectedRailLine->ringLineStation)
+				{
+					curSelectedPoint = curSelectedRailLine->DeleteRingLineStation(curSelectedStation);
+					ringLineIcon->SetVisibility(ESlateVisibility::Hidden);
+					ringRingNum++;
+				}else
+				{
+					curSelectedPoint = curSelectedRailLine->DeleteStation(curSelectedStation);	
+				}
 				lastStation = curSelectedStation;
 				curSelectedStation = nullptr;
 			}
@@ -158,8 +238,8 @@ void ACxxDispatchManager::Tick(float DeltaTime)
 			{
 				if(operatorName == "movement")
 				{
-					curSelectedPoint->UpdateMousePointTick();
 					EditRailFromStation();
+					if(curSelectedPoint && curSelectedPoint->GetPointType() == PointType::ManualPoint) curSelectedPoint->UpdateMousePointTick();
 				}
 				else if(operatorName.Contains("tangent"))
 				{
@@ -174,6 +254,9 @@ void ACxxDispatchManager::Tick(float DeltaTime)
 				{
 					UE_LOG(LogTemp, Warning, TEXT("【ERROR】operatorName is not valid!"));
 				}
+			}else
+			{
+				
 			}
 		}
 		// 选择阶段
@@ -182,16 +265,6 @@ void ACxxDispatchManager::Tick(float DeltaTime)
 			HighLightHoverObject(true, true);
 			InputProcess();
 		}
-
-		// 更新当前段
-		// if(curSelectedRailLine && curSelectedSegment && mouseLocation != FVector::ZeroVector)
-		// {
-		// 	// curSelectedRailLine->UpdateRailLineSegmentWithMouseLocation(curSelectedSegment, mouseLocation);
-		// 	// curSelectedRailLine->UpdateRailLine();
-		// 	// curSelectedSegment name
-		// 	// UE_LOG(LogTemp, Warning, TEXT("curSelectedSegment: %s"), *curSelectedSegment->GetName());
-		// }
-		// ShowEditViewRailLine();
 	}
 	
 	if(bIsAddTrain)
@@ -200,75 +273,7 @@ void ACxxDispatchManager::Tick(float DeltaTime)
 		// 处理按键
 		MonitorAddTrainInput();
 	}
-
-	/////////////////////////////////////////////////////// DEBUG ///////////////////////////////////////////////////////
-	// 输出bIsAddTrain状态
-	// UE_LOG(LogTemp, Warning, TEXT("bIsAddTrain: %d"), bIsAddTrain);
 }
-
-
-// void ACxxDispatchManager::StartCreateRailLine()
-// {
-// 	if(bIsAddTrain) return;
-// 	
-// 	// 获取PlayerController
-// 	ACxxPlayerController* cxxPC = Cast<ACxxPlayerController>(GetWorld()->GetFirstPlayerController());
-// 	float mouseX, mouseY;
-// 	cxxPC->GetMousePosition(mouseX, mouseY);
-// 	
-// 	FVector wLocation, wDirection;
-// 	cxxPC->DeprojectScreenPositionToWorld(mouseX, mouseY, wLocation, wDirection);
-// 	
-// 	FHitResult hitRes;
-// 	FCollisionQueryParams cParams;
-// 	cParams.AddIgnoredActor(this);
-// 	
-// 	if (GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 10000,
-// 		StationChannel, cParams))
-// 	{
-// 		// 加入空的stations列表中
-// 		ACxxStation* station = Cast<ACxxStation>(hitRes.GetActor());
-// 		SwapRailLineActor(station);
-// 		if(!curGeneRailLine->stations.IsEmpty()) UE_LOG(LogTemp, Warning, TEXT("【ERROR】stations is not empty!"));
-// 		
-// 		curGeneRailLine->stations.Empty();
-// 		curGeneRailLine->stations.Add(station);
-// 		bIsDrawRailLine = true;
-// 		station->SwitchOutlineEffect();
-// 	}
-// }
-
-// void ACxxDispatchManager::EndCreateRailLine()
-// {
-// 	if(bIsAddTrain) return;
-// 	
-// 	if(bIsDrawRailLine)
-// 	{
-// 		bIsDrawRailLine = false;
-// 		for(ACxxStation* station : curGeneRailLine->stations)
-// 		{
-// 			station->SwitchOutlineEffect();
-// 		}
-// 		// 创建成功
-// 		if(curGeneRailLine->stations.Num() != 1){
-// 			if(!curGeneRailLine->railSegments.Last()->bEndIsStation)
-// 			{
-// 				UCxxRailSegment* segment = curGeneRailLine->railSegments.Top();
-// 				curGeneRailLine->railSegments.Pop();
-// 				segment->MarkAsGarbage();
-// 				segment = nullptr;
-// 			}
-// 			railLines.Add(curGeneRailLine);
-// 			curGeneRailLine->FinishEdit(); // 结束编辑生成轨道实例
-// 			CreateTrainInRailLine(curGeneRailLine);  // 创建列车
-// 			curGeneRailLine = nullptr;
-// 		}else
-// 		{
-// 			curGeneRailLine->Destroy();
-// 			curGeneRailLine = nullptr;
-// 		}
-// 	}
-// }
 
 void ACxxDispatchManager::SwapRailLineActor(ACxxStation* station, bool bIsArrowDir)
 {
@@ -279,94 +284,18 @@ void ACxxDispatchManager::SwapRailLineActor(ACxxStation* station, bool bIsArrowD
 	}
 	
 	curSelectedRailLine = GetWorld()->SpawnActor<ACxxRailLine>(ACxxRailLine::StaticClass());
+	curSelectedRailLine->Init(movementComponentClass, tangentComponentAClass, tangentComponentBClass, railLineBaseClass, railLinePillarBaseClass, railLinePillarRepeatClass);
+	railLines.Add(curSelectedRailLine);
 
-	// 设置线路颜色
-	// FColor railColor = GetRailColor();
-	// curSelectedRailLine->SetRailColor(railColor);
 	FString name = GetRailLineName();
 	curSelectedRailLine->Init(name);
 	curSelectedRailLine->bIsHighlighted = true;
-
-	// 添加新段
-	// UCxxRailSegment* newSeg1 = NewObject<UCxxRailSegment>(curSelectedRailLine);
-	// UCxxRailSegment* newSeg2 = NewObject<UCxxRailSegment>(curSelectedRailLine);
-	// newSeg1->init(nullptr, station);
-	// newSeg2->init(station, nullptr);
-	// curSelectedRailLine->railSegments.Add(newSeg1);
-	// curSelectedRailLine->railSegments.Add(newSeg2);
-	// curSelectedSegment = newSeg2;
-
+	
 	// 添加当前车站
 	curSelectedPoint = curSelectedRailLine->AddStation(station, bIsArrowDir);
-	// station->SwitchOutlineEffect();
-
-	// bInitRailLine = true;
 }
 
-// void ACxxDispatchManager::UpdataTickOperate()
-// {
-// 	ACxxPlayerController* cxxPC = Cast<ACxxPlayerController>(GetWorld()->GetFirstPlayerController());
-// 	float mouseX, mouseY;
-// 	cxxPC->GetMousePosition(mouseX, mouseY);
-// 	
-// 	FVector wLocation, wDirection;
-// 	cxxPC->DeprojectScreenPositionToWorld(mouseX, mouseY, wLocation, wDirection);
-// 	
-// 	FHitResult hitRes;
-// 	FCollisionQueryParams cParams;
-// 	
-// 	if (GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 10000,
-// 		StationChannel, cParams))
-// 	{
-// 		ACxxStation* station = Cast<ACxxStation>(hitRes.GetActor());
-//
-// 		// 当前station切换才继续逻辑
-// 		if(lastStation == station) return;
-// 		lastStation = station;
-//
-// 		UE_LOG(LogTemp, Warning, TEXT("station: %s"), *station->GetName());
-// 		
-// 		if(station && !curGeneRailLine->stations.Contains(station))
-// 		{
-// 			// 添加新站
-// 			curGeneRailLine->stations.Add(station);
-// 			station->SwitchOutlineEffect();
-// 			
-// 			// 修改最后一个段的状态,并更新为车站的连接方式
-// 			curGeneRailLine->railSegments.Last()->stationB = station;
-// 			curGeneRailLine->railSegments.Last()->bEndIsStation = true;
-// 			curGeneRailLine->UpdataSegment(curGeneRailLine->railSegments.Last());
-//
-// 			// 添加一个新段
-// 			UCxxRailSegment* newSeg = NewObject<UCxxRailSegment>(curGeneRailLine);
-// 			newSeg->init(station);
-// 			curGeneRailLine->railSegments.Add(newSeg);
-// 		}else if(station && curGeneRailLine->stations.Contains(station))
-// 		{
-// 			// 如果是最后一个站非起始站则移除
-// 			if(curGeneRailLine->stations.Num() >= 2 && curGeneRailLine->stations.Last() == station)
-// 			{
-// 				ACxxStation* popStation = curGeneRailLine->stations.Pop();
-// 				popStation->SwitchOutlineEffect();
-// 				popStation = nullptr;
-//
-// 				UCxxRailSegment* segment = curGeneRailLine->railSegments.Top();
-// 				curGeneRailLine->railSegments.Pop();
-// 				segment->MarkAsGarbage();
-// 				segment = nullptr;
-// 				
-// 				curGeneRailLine->railSegments.Last()->bEndIsStation = false;
-// 				curGeneRailLine->railSegments.Last()->stationB = nullptr;
-// 			}
-// 		}
-// 	}
-// 	else
-// 	{
-// 		lastStation = nullptr;
-// 	}
-// }
-
-void ACxxDispatchManager::CreateTrainInRailLine(ACxxRailLine* railLine)
+void ACxxDispatchManager::CreateTrainInRailLine(ACxxRailLine* railLine, bool bIsInit)
 {
 	// 创建一个列车
 	if(trainClass)
@@ -374,56 +303,64 @@ void ACxxDispatchManager::CreateTrainInRailLine(ACxxRailLine* railLine)
 		FActorSpawnParameters spawnParams;
 		ACxxMonoRailTrain* train = Cast<ACxxMonoRailTrain>(GetWorld()->SpawnActor<AActor>(trainClass,
 			FVector::ZeroVector, FRotator::ZeroRotator, spawnParams));
+		ACxxPlayerController* cxxPC = Cast<ACxxPlayerController>(GetWorld()->GetFirstPlayerController());
 		if(train)
 		{
 			train->AttachToActor(this, FAttachmentTransformRules::KeepRelativeTransform);
-			train->Init(railLine, true, trainSpeed, trainOffSetRail, this);
+			train->Init(railLine, true, trainSpeed, trainOffSetRail, this, railLine->railSegments[0], rootPanel);
+			
 			railLine->trains.Add(train);
 			trains.Add(train);
+		}
+		// 环线创建两辆车
+		if(railLine->bIsRingLine && bIsInit)
+		{
+			ACxxMonoRailTrain* train2 = Cast<ACxxMonoRailTrain>(GetWorld()->SpawnActor<AActor>(trainClass,
+				FVector::ZeroVector, FRotator::ZeroRotator, spawnParams));
+			if(train2)
+			{
+				train2->AttachToActor(this, FAttachmentTransformRules::KeepRelativeTransform);
+				train2->Init(railLine, false, trainSpeed, trainOffSetRail, this, railLine->railSegments[0], rootPanel);
+				
+				railLine->trains.Add(train2);
+				trains.Add(train2);
+			}
 		}
 	}
 }
 
-// void ACxxDispatchManager::CreateCxxPassenger(float DeltaTime)
-// {
-// 	// 每隔一段1/60s随机生成一次乘客
-// 	passengerTimer += DeltaTime;
-// 	if(passengerTimer < 1/60.f) return;
-// 	passengerTimer = 0.f;
-// 	
-// 	// 每个车站随机生成乘客
-// 	for(ACxxStation* station : stations)
-// 	{
-// 		int randNum = FMath::RandRange(0, 999);
-// 		if(randNum > 996)
-// 		{
-// 			// 随机生成一个不是当前站EStationType的EStationType
-// 			EStationType randType = static_cast<EStationType>(FMath::RandRange(0, 3));
-// 			while(randType == station->GetStationType())
-// 			{
-// 				randType = static_cast<EStationType>(FMath::RandRange(0, 3));
-// 			}
-// 			// 创建一个CxxPassenger对象
-// 			ACxxPassenger* passenger = GetWorld()->SpawnActor<ACxxPassenger>(ACxxPassenger::StaticClass());
-// 			if(passenger)
-// 			{
-// 				passenger->AttachToActor(station, FAttachmentTransformRules::KeepRelativeTransform);
-// 				passenger->targetStationType = randType;
-// 				station->AddPassenger(passenger);
-// 			}
-// 		}
-// 	}
-// }
+void ACxxDispatchManager::CreateTrainInAllRailine()
+{
+	for (auto rail:railLines)
+	{
+		CreateTrainInRailLine(rail, true);
+	}
+}
 
-// void ACxxDispatchManager::TestFuncGetAllStation()
-// {
-// 	TArray<AActor*> allStation;
-// 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ACxxStation::StaticClass(), allStation);
-// 	for(AActor* station : allStation)
-// 	{
-// 		stations.Add(Cast<ACxxStation>(station));
-// 	}
-// }
+void ACxxDispatchManager::RemoveTrainInAllRailine()
+{
+	if (trains.IsEmpty()) return;
+	for(auto train:trains)
+	{
+		if (IsValid(train) && train)
+		{
+			train->DestroyTrain();
+		}
+	}
+	if(!trains.IsEmpty()) trains.Empty();
+
+	for (auto line:railLines)
+	{
+		for (auto train:line->trains)
+		{
+			if (IsValid(train) && train)
+			{
+				train->DestroyTrain();
+			}
+		}
+	}
+}
+
 
 FColor ACxxDispatchManager::GetRailColor()
 {
@@ -451,14 +388,20 @@ void ACxxDispatchManager::CreateHUD()
 				railLineEditButton->OnClicked.AddDynamic(this, &ACxxDispatchManager::OnEditRailLineButtonClicked);
 			}
 
+			pointDeleteButton = Cast<UButton>(hudWidget->GetWidgetFromName(TEXT("DeletePointButton")));
+			if (pointDeleteButton)
+			{
+				pointDeleteButton->OnClicked.AddDynamic(this, &ACxxDispatchManager::OnDeletePointButtonClicked);
+			}
+			
+			rootPanel = Cast<UCanvasPanel>(hudWidget->GetWidgetFromName(TEXT("RootPanel")));
 			addTrainCanvasPanel = Cast<UCanvasPanel>(hudWidget->GetWidgetFromName(TEXT("AddTrainCanvasPanel")));
 			railEditCanvasPanel = Cast<UCanvasPanel>(hudWidget->GetWidgetFromName(TEXT("RailEditCanvasPanel")));
 			scoreText = Cast<UTextBlock>(hudWidget->GetWidgetFromName(TEXT("Score")));
 			railNameTextBlock = Cast<UTextBlock>(hudWidget->GetWidgetFromName(TEXT("RailLineName")));
-			// // 设置UMG和GameMode的输入模式，否则按键的时候做不了射线检测 TODO:还是没能解决，按下按钮的时候，UMG会吃掉射线检测.
-			// ACxxPlayerController* cxxPC = Cast<ACxxPlayerController>(GetWorld()->GetFirstPlayerController());
-			// FInputModeGameAndUI InputMode;
-			// cxxPC->SetInputMode(InputMode);
+			ringLineIcon = Cast<UImage>(hudWidget->GetWidgetFromName(TEXT("RingLineIcon")));
+			ringLineIcon->SetVisibility(ESlateVisibility::Hidden);
+			pointDeleteButton->SetVisibility(ESlateVisibility::Hidden);
 			InitButton();
 		}
 	}
@@ -476,11 +419,6 @@ void ACxxDispatchManager::OnTrainCreateButtonClicked()
 	}
 }
 
-// void ACxxDispatchManager::OnTrainCreateButtonReleased()
-// {
-// 	EndIsAddTrain();
-// }
-
 void ACxxDispatchManager::MonitorAddTrainInput()
 {
 	// 鼠标左键放置
@@ -488,11 +426,26 @@ void ACxxDispatchManager::MonitorAddTrainInput()
 	{
 		if(curSelectedRailLine)
 		{
-			CreateTrainInRailLine(curSelectedRailLine);
+			if (trainNum > 0)
+			{
+				trainNum--;
+				CreateTrainInRailLine(curSelectedRailLine, false);	
+			}else
+			{
+				// TODO:提示没有列车
+			}
 		}
-		else
+		else if (curSelectedTrain)
 		{
-			// 提示不能添加列车
+			// 确保有至少一辆车
+			if (curSelectedTrain->railLine->trains.Num() > 1)
+			{
+				// add delete tag
+				curSelectedTrain->MarkTrainAsDelete();
+			}else
+			{
+				// 提示不能删除
+			}
 		}
 	}
 }
@@ -500,7 +453,7 @@ void ACxxDispatchManager::MonitorAddTrainInput()
 void ACxxDispatchManager::HighLightHoverObject(bool bRailLine, bool bStation)
 {
 	ACxxPlayerController* cxxPC = Cast<ACxxPlayerController>(GetWorld()->GetFirstPlayerController());
-	float mouseX, mouseY;
+	float mouseX, mouseY; 
 	cxxPC->GetMousePosition(mouseX, mouseY);
 	
 	FVector wLocation, wDirection;
@@ -509,12 +462,38 @@ void ACxxDispatchManager::HighLightHoverObject(bool bRailLine, bool bStation)
 	FHitResult hitRes;
 	FCollisionQueryParams cParams;
 
-	if(bStation && GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 10000,
-		StationChannel, cParams))
+	if(bIsAddTrain && bRailLine && GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 100000,
+		ECC_GameTraceChannel5, cParams))
 	{
+		// 列车
 		if(curSelectedRailLine != nullptr)
 		{
-			curSelectedRailLine->SwitchHightLightEffect();
+			curSelectedRailLine->SwitchHightLightEffect(true);
+		}
+		curSelectedRailLine = nullptr;
+		
+		if (curSelectedTrain != nullptr)
+		{
+			curSelectedTrain->SwitchHightLightEffect();
+		}
+		curSelectedTrain = Cast<ACxxMonoRailTrain>(hitRes.GetActor());
+		if (curSelectedTrain)
+		{
+			curSelectedTrain->SwitchHightLightEffect();
+		}
+	}else if (bStation && GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 100000,
+		StationChannel, cParams))
+	{
+		// 站点
+		if (curSelectedTrain != nullptr)
+		{
+			curSelectedTrain->SwitchHightLightEffect();
+		}
+		curSelectedRailLine = nullptr;
+		
+		if(curSelectedRailLine != nullptr)
+		{
+			curSelectedRailLine->SwitchHightLightEffect(true);
 		}
 		curSelectedRailLine = nullptr;
 
@@ -531,9 +510,10 @@ void ACxxDispatchManager::HighLightHoverObject(bool bRailLine, bool bStation)
 			}
 		}
 	}
-	else if (bRailLine && GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 10000,
+	else if (bRailLine && GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 100000,
 		ECC_GameTraceChannel2, cParams))
 	{
+		// 线路
 		if(curSelectedStation != nullptr)
 		{
 			curSelectedStation->SwitchOutlineEffect();
@@ -545,27 +525,34 @@ void ACxxDispatchManager::HighLightHoverObject(bool bRailLine, bool bStation)
 			// 把上一个高亮的rail取消高亮
 			if(curSelectedRailLine != nullptr)
 			{
-				curSelectedRailLine->SwitchHightLightEffect();
+				curSelectedRailLine->SwitchHightLightEffect(!bIsAddTrain);
 			}
 			curSelectedRailLine = Cast<ACxxRailLine>(hitRes.GetActor());
 			// 当前如果是rail则高亮
 			if(curSelectedRailLine)
 			{
-				curSelectedRailLine->SwitchHightLightEffect();
+				curSelectedRailLine->bIsHighlighted = false;
+				curSelectedRailLine->SwitchHightLightEffect(!bIsAddTrain);
 				// UE_LOG(LogTemp, Warning, TEXT("rail: %s"), *curSelectedRailLine->GetName());
 			}
 		}
-	}else
+	}
+	else
 	{
 		if(curSelectedRailLine != nullptr)
 		{
-			curSelectedRailLine->SwitchHightLightEffect();
+			curSelectedRailLine->SwitchHightLightEffect(true);
 			curSelectedRailLine = nullptr;
 		}
 		if(curSelectedStation != nullptr)
 		{
 			curSelectedStation->SwitchOutlineEffect();
 			curSelectedStation = nullptr;
+		}
+		if (curSelectedTrain != nullptr)
+		{
+			curSelectedTrain->SwitchHightLightEffect();
+			curSelectedTrain = nullptr;
 		}
 	}
 }
@@ -577,7 +564,7 @@ void ACxxDispatchManager::BeginIsAddTrain()
 	UWorld* World = GetWorld();
 	if (World)
 	{
-		World->GetWorldSettings()->SetTimeDilation(0.2f);
+		World->GetWorldSettings()->SetTimeDilation(0.05f);
 	}
 	addTrainCanvasPanel->SetVisibility(ESlateVisibility::Visible);
 }
@@ -594,31 +581,6 @@ void ACxxDispatchManager::EndIsAddTrain()
 	addTrainCanvasPanel->SetVisibility(ESlateVisibility::Hidden);
 }
 
-void ACxxDispatchManager::CreateInputProcess()
-{
-	if(GetWorld()->GetFirstPlayerController()->WasInputKeyJustReleased(EKeys::LeftMouseButton))
-	{
-		if(bIsCreateRail)
-		{
-			curSelectedRailLine->SwitchHightLightEffect();
-			// 创建成功
-			if(curSelectedRailLine->stations.Num() != 1){
-				railLines.Add(curSelectedRailLine);
-				curSelectedRailLine->FinishedEditRailLineFromStation(); // 结束编辑生成轨道实例
-				// CreateTrainInRailLine(curSelectedRailLine);  // 创建列车
-			}else
-			{
-				curSelectedRailLine->Destroy();
-			};
-			curSelectedRailLine = nullptr;
-			curSelectedStation = nullptr;
-			createStation = nullptr;
-			bIsCreateRail = false;
-			bInitRailLine = false;
-		}
-	}
-}
-
 FString ACxxDispatchManager::GetRailLineName()
 {
 	FString name = TEXT("【线路数量超出名称数量上限】");
@@ -628,7 +590,7 @@ FString ACxxDispatchManager::GetRailLineName()
 		for(auto railLine : railLines)
 		{
 			// 使用 TEXT() 宏确保正确编码
-			if(railLine->railLineName == metroName + TEXT("轨道交通") + FString::FromInt(i) + TEXT("号线"))
+			if(railLine->railLineName == TEXT("深月轨道交通") + FString::FromInt(i) + TEXT("号线"))
 			{
 				bTFindName = true;
 			}
@@ -636,7 +598,7 @@ FString ACxxDispatchManager::GetRailLineName()
 		if(!bTFindName)
 		{
 			// 使用 TEXT() 宏确保正确编码
-			name = metroName + TEXT("轨道交通") + FString::FromInt(i) + TEXT("号线");
+			name = TEXT("深月轨道交通") + FString::FromInt(i) + TEXT("号线");
 			break;
 		}
 	}
@@ -646,36 +608,13 @@ FString ACxxDispatchManager::GetRailLineName()
 
 void ACxxDispatchManager::OnEditRailLineButtonClicked()
 {
+	if (!bRailIsVaild) return;
 	if(!bIsEditRail)
 	{
 		BeginEditRailLine();
 	}else
 	{
 		EndEditRailLine();
-	}
-}
-
-void ACxxDispatchManager::MonitorEditRailLineInput()
-{
-	// 再次按下按钮关闭
-	if (GetWorld()->GetFirstPlayerController()->WasInputKeyJustReleased(EKeys::C))
-	{
-		EndEditRailLine();
-		// TODO
-	}
-	// 鼠标左键开始编辑
-	if (GetWorld()->GetFirstPlayerController()->WasInputKeyJustReleased(EKeys::LeftMouseButton))
-	{
-		if(curSelectedRailLine)
-		{
-			// 停止选择
-			// EndSelectRailLine();
-			EnableEditView();
-		}
-		else
-		{
-			// TODO:提示未选中轨道
-		}
 	}
 }
 
@@ -691,7 +630,7 @@ void ACxxDispatchManager::EditRailFromStation()
 	FHitResult hitRes;
 	FCollisionQueryParams cParams;
 	
-	if (GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 10000,
+	if (GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 100000,
 		StationChannel, cParams))
 	{
 		ACxxStation* station = Cast<ACxxStation>(hitRes.GetActor());
@@ -705,12 +644,6 @@ void ACxxDispatchManager::EditRailFromStation()
 		// 添加新站
 		if(station && !curSelectedRailLine->stations.Contains(station))
 		{
-			// int idx = curSelectedRailLine->railSegments.Find(curSelectedSegment);
-			// if(idx == -1)
-			// {
-			// 	return;
-			// }
-
 			// 判断方向
 			FString collsionName = hitRes.GetComponent()->GetName();
 			if(curSelectedPoint && curSelectedRailLine) curSelectedRailLine->curSelectedPoint = curSelectedPoint;
@@ -721,61 +654,37 @@ void ACxxDispatchManager::EditRailFromStation()
 			{
 				curSelectedPoint = curSelectedRailLine->AddStation(station, true);
 			}
-			// 写一个函数处理，这样在修改前都会updata一下
-			// curSelectedRailLine->UpdateRailLine();
-			// curSelectedSegment = curSelectedRailLine->railSegments[idx + 1];
+			station->isHighlighted = false;
 			station->SwitchOutlineEffect();
 		}
-		// 移除站
+		// 已有站
 		else if(station && curSelectedRailLine->stations.Contains(station))
 		{
-			if(curSelectedPoint && curSelectedRailLine) curSelectedRailLine->curSelectedPoint = curSelectedPoint;
-			curSelectedPoint = curSelectedRailLine->DeleteStation(station);
-			// if( (curSelectedSegment->stationA == station || curSelectedSegment->stationB == station) &&
-			// 	curSelectedRailLine->stations.Num() >= 2)
-			// {
-			// 	int idx = curSelectedRailLine->DeleteStation(station);
-			// 	// curSelectedRailLine->UpdateRailLine();
-			// 	curSelectedSegment = curSelectedRailLine->railSegments[idx];
-			// 	station->SwitchOutlineEffect();
-			// }
+			auto point = curSelectedRailLine->GetPointFromStation(station);
+			// 形成环线
+			if(!curSelectedRailLine->bIsRingLine && curSelectedRailLine->stations.Num() > 1 &&
+				((!point->preSegment && !curSelectedPoint->nextSegment) ||
+				(!point->nextSegment && !curSelectedPoint->preSegment)))
+			{
+				// 变成环线
+				curSelectedPoint = curSelectedRailLine->AddRingLineStation(station, curSelectedPoint, point);
+				// 显示环线图标
+				ringLineIcon->SetVisibility(ESlateVisibility::Visible);
+				ringRingNum--;
+			}
+			// 删除站
+			else
+			{
+				if(curSelectedRailLine->bIsRingLine && station == curSelectedRailLine->ringLineStation) return;
+				if(curSelectedPoint && curSelectedRailLine) curSelectedRailLine->curSelectedPoint = curSelectedPoint;
+				curSelectedPoint = curSelectedRailLine->DeleteStation(station);	
+			}
 		}
 	}
 	else
 	{
 		lastStation = nullptr;
 	}
-}
-
-// void ACxxDispatchManager::UpdataMouseLocation()
-// {
-// 	ACxxPlayerController* cxxPC = Cast<ACxxPlayerController>(GetWorld()->GetFirstPlayerController());
-// 	float mouseX, mouseY;
-// 	cxxPC->GetMousePosition(mouseX, mouseY);
-// 	
-// 	FVector wLocation, wDirection;
-// 	cxxPC->DeprojectScreenPositionToWorld(mouseX, mouseY, wLocation, wDirection);
-// 	
-// 	FHitResult hitRes;
-// 	FCollisionQueryParams cParams;
-// 	
-// 	if (GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 10000,
-// 		ECC_GameTraceChannel3, cParams))
-// 	{
-// 		mouseLocation = hitRes.Location;
-// 	}else
-// 	{
-// 		mouseLocation = FVector::ZeroVector;
-// 	}
-//
-// 	// 画一个debug sphere
-// 	DrawDebugSphere(GetWorld(), mouseLocation, 20.0f, 8, FColor::Red, false, 0.1f);
-// }
-
-void ACxxDispatchManager::CreateRailFromStation(ACxxStation* station)
-{
-	// 创建一个railline
-	// SwapRailLineActor(station, );
 }
 
 void ACxxDispatchManager::BeginEditRailLine()
@@ -785,7 +694,7 @@ void ACxxDispatchManager::BeginEditRailLine()
 	UWorld* World = GetWorld();
 	if (World)
 	{
-		World->GetWorldSettings()->SetTimeDilation(0.2f);
+		World->GetWorldSettings()->SetTimeDilation(0.05f);
 	}
 	railEditCanvasPanel->SetVisibility(ESlateVisibility::Visible);
 }
@@ -802,16 +711,6 @@ void ACxxDispatchManager::EndEditRailLine()
 	railEditCanvasPanel->SetVisibility(ESlateVisibility::Hidden);
 }
 
-// void ACxxDispatchManager::BeginSelectRailLine()
-// {
-// 	bIsSelectRail = true;
-// }
-//
-// void ACxxDispatchManager::EndSelectRailLine()
-// {
-// 	bIsSelectRail = false;
-// }
-
 void ACxxDispatchManager::InputProcess()
 {
 	if (GetWorld()->GetFirstPlayerController()->WasInputKeyJustPressed(EKeys::LeftMouseButton))
@@ -826,7 +725,7 @@ void ACxxDispatchManager::InputProcess()
 		FHitResult hitRes;
 		FCollisionQueryParams cParams;
 	
-		if (GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 10000,
+		if (GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 100000,
 			StationChannel, cParams))
 		{
 			// 站点
@@ -844,7 +743,7 @@ void ACxxDispatchManager::InputProcess()
 				bCreateStationIsArrowDir = false;
 			}
 		}
-		else if(GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 10000,
+		else if(GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 100000,
 			ECC_GameTraceChannel2, cParams))
 		{
 			// 轨道
@@ -857,34 +756,14 @@ void ACxxDispatchManager::InputProcess()
 			if(curSelectedRailLine && railNameTextBlock)
 			{
 				railNameTextBlock->SetText(FText::FromString(curSelectedRailLine->railLineName));
+				if (curSelectedRailLine->bIsRingLine)
+				{
+					ringLineIcon->SetVisibility(ESlateVisibility::Visible);
+				}
 			}
 		}
 	}
 }
-
-// void ACxxDispatchManager::UpdataButtonLocation()
-// {
-// 	if(curSelectedRailLine && editCanvasPanel)
-// 	{
-// 		ACxxPlayerController* cxxPC = Cast<ACxxPlayerController>(GetWorld()->GetFirstPlayerController());
-// 	
-// 		FVector railLineLocation = curSelectedRailLine->stations[0]->GetActorLocation();
-//
-// 		FVector2D screenPos;
-// 		cxxPC->ProjectWorldLocationToScreen(railLineLocation, screenPos);
-//
-// 		UCanvasPanelSlot* slot = Cast<UCanvasPanelSlot>(editCanvasPanel->Slot);
-// 		if(slot)
-// 		{
-// 			// 向上偏移整个组件的高度，向左偏移半个组件的长度
-// 			screenPos.Y -= slot->GetSize().Y + 100.0;
-// 			screenPos.X -= slot->GetSize().X / 2.0;
-// 			
-// 			slot->SetPosition(screenPos);
-// 			// UE_LOG(LogTemp, Warning, TEXT("screenPos: %s"), *screenPos.ToString());
-// 		}
-// 	}
-// }
 
 void ACxxDispatchManager::InitButton()
 {
@@ -899,12 +778,15 @@ void ACxxDispatchManager::InitButton()
 void ACxxDispatchManager::OnCancelButtonClicked()
 {
 	// TODO:还需要取消其他数据.
+	if (!bRailIsVaild) return;
 	bIsSelectRail = false;
 	editCanvasPanel->SetVisibility(ESlateVisibility::Hidden);
+	pointDeleteButton->SetVisibility(ESlateVisibility::Hidden);
+	ringLineIcon->SetVisibility(ESlateVisibility::Hidden);
 
 	if(curSelectedRailLine)
 	{
-		curSelectedRailLine->SwitchHightLightEffect();
+		curSelectedRailLine->SwitchHightLightEffect(true);
 		curSelectedRailLine->curSelectedPoint = nullptr;
 		curSelectedRailLine = nullptr;
 	}
@@ -916,13 +798,64 @@ void ACxxDispatchManager::OnCancelButtonClicked()
 void ACxxDispatchManager::OnDeleteButtonClicked()
 {
 	bIsSelectRail = false;
+	bRailIsVaild = true;
 	editCanvasPanel->SetVisibility(ESlateVisibility::Hidden);
+	pointDeleteButton->SetVisibility(ESlateVisibility::Hidden);
+	ringLineIcon->SetVisibility(ESlateVisibility::Hidden);
+	
 	if(curSelectedRailLine)
 	{
-		curSelectedRailLine->SwitchHightLightEffect();
+		curSelectedRailLine->SwitchHightLightEffect(true);
 		railLines.Remove(curSelectedRailLine);
+		railNum++;
+		if (curSelectedRailLine->bIsRingLine) ringRingNum++;
 		curSelectedRailLine->Destroy();
 		curSelectedRailLine = nullptr;
+	}
+}
+
+void ACxxDispatchManager::OnDeletePointButtonClicked()
+{
+	if (lastSelectedPoint && curSelectedRailLine)
+	{
+		curSelectedRailLine->controlPoints.Remove(lastSelectedPoint);
+		if (lastSelectedPoint->preSegment) curSelectedRailLine->railSegments.Remove(lastSelectedPoint->preSegment);
+		lastSelectedPoint->Delete();
+	}
+	pointDeleteButton->SetVisibility(ESlateVisibility::Hidden);
+	bIsChanged = true;
+}
+
+void ACxxDispatchManager::UpdateButtonAndIcon()
+{
+	ACxxPlayerController* cxxPC = Cast<ACxxPlayerController>(GetWorld()->GetFirstPlayerController());
+	if(pointDeleteButton && lastSelectedPoint)
+	{
+		FVector wLocation = lastSelectedPoint->location;
+		FVector2D sPosition;
+			
+		if (cxxPC && cxxPC->ProjectWorldLocationToScreen(wLocation, sPosition))
+		{
+			if (UCanvasPanelSlot* slot = Cast<UCanvasPanelSlot>(pointDeleteButton->Slot))
+			{
+				slot->SetPosition(sPosition);
+			}
+		}	
+	}
+
+	if(curSelectedRailLine && curSelectedRailLine->ringLineStation && ringLineIcon &&
+		ringLineIcon->GetVisibility() == ESlateVisibility::Visible)
+	{
+		FVector stationLoc = curSelectedRailLine->ringLineStation->GetActorLocation();
+		FVector2D stationScreenLoc;
+			
+		if (cxxPC && cxxPC->ProjectWorldLocationToScreen(stationLoc, stationScreenLoc))
+		{
+			if (UCanvasPanelSlot* slot = Cast<UCanvasPanelSlot>(ringLineIcon->Slot))
+			{
+				slot->SetPosition(stationScreenLoc);
+			}
+		}
 	}
 }
 
@@ -956,28 +889,6 @@ void ACxxDispatchManager::DisableEditView()
 	bIsEditView = false;
 }
 
-// void ACxxDispatchManager::ShowEditViewRailLine()
-// {
-// 	if(curSelectedRailLine)
-// 	{
-// 		for(auto seg : curSelectedRailLine->railSegments)
-// 		{
-// 			for(int i = 0; i < seg->points.Num(); i++)
-// 			{
-// 				if(i == seg->points.Num() - 1)
-// 				{
-// 					break;
-// 				}
-// 				DrawDebugLine(GetWorld(), seg->points[i], seg->points[i + 1], FColor::Green, false, 0.f, 0, 10.f);
-// 				// if(seg->pointType[i] == 1)
-// 				// {
-// 				// 	DrawDebugBox(GetWorld(), seg->points[i], FVector(10, 10, 10), FColor::Red, false, 0.f, 0, 10.f);
-// 				// }
-// 			}
-// 		}
-// 	}
-// }
-
 void ACxxDispatchManager::ModifyInputProcess()
 {
 	// 按住编辑该对象
@@ -988,29 +899,44 @@ void ACxxDispatchManager::ModifyInputProcess()
 		curSelectedRailLine->curSelectedPoint = nullptr;
 		lastStation = nullptr;
 		GetRailLineObject();
+		pointDeleteButton->SetVisibility(ESlateVisibility::Hidden);
 	}
 	
 	if(GetWorld()->GetFirstPlayerController()->WasInputKeyJustReleased(EKeys::LeftMouseButton))
 	{
-		// if(curSelectedStation)
-		// {
-		// 有效路径
 		if(curSelectedRailLine->stations.Num() != 1){
-			railLines.Add(curSelectedRailLine);
+			if(curSelectedPoint && curSelectedRailLine) curSelectedRailLine->curSelectedPoint = curSelectedPoint;
 			curSelectedRailLine->FinishedEditRailLineFromStation(); // 结束编辑生成轨道实例
 			curSelectedRailLine->curSelectedPoint = nullptr;
-			// CreateTrainInRailLine(curSelectedRailLine);  // 创建列车
+			// 准备进行线路合规性检测
+			bIsChanged = true;
 		}else
 		{
 			curSelectedRailLine->Destroy();
-			curSelectedRailLine->SwitchHightLightEffect();
+			curSelectedRailLine->SwitchHightLightEffect(true);
+			if (railLines.Contains(curSelectedRailLine))
+			{
+				railLines.Remove(curSelectedRailLine);
+				if (curSelectedRailLine->bIsRingLine) ringRingNum++;
+				railNum++;
+			}
 			curSelectedRailLine = nullptr;
 			OnCancelButtonClicked();
 			bIsSelectRail = false;
-		};
+			ringLineIcon->SetVisibility(ESlateVisibility::Hidden);
+			pointDeleteButton->SetVisibility(ESlateVisibility::Hidden);
+			curSelectedPoint = nullptr;
+		}
 		curSelectedStation = nullptr;
-		// }
 		if(curSelectedPoint) curSelectedPoint->ResetTangentOperatorParam();
+		lastSelectedPoint = nullptr;
+		// 设置删除节点按钮
+		if (curSelectedPoint && curSelectedPoint->GetPointType() == PointType::ManualPoint &&
+			curSelectedPoint->preSegment && curSelectedPoint->nextSegment)
+		{
+			lastSelectedPoint = curSelectedPoint;
+			pointDeleteButton->SetVisibility(ESlateVisibility::Visible);
+		}
 		curSelectedPoint = nullptr;
 		curSelectedSegment = nullptr;
 	}
@@ -1028,7 +954,7 @@ void ACxxDispatchManager::GetRailLineObject()
 	FHitResult hitRes;
 	FCollisionQueryParams cParams;
 	
-	if (GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 10000,
+	if (GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 100000,
 		ECC_GameTraceChannel4, cParams))
 	{
 		// 操作点
@@ -1061,7 +987,7 @@ void ACxxDispatchManager::GetRailLineObject()
 			}
 		}
 	}
-	else if(GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 10000,
+	else if(GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 100000,
 		StationChannel, cParams))
 	{
 		// 站点
@@ -1071,7 +997,7 @@ void ACxxDispatchManager::GetRailLineObject()
 		}
 		curSelectedRailLine->curSelectedPoint = curSelectedRailLine->GetPointFromStation(curSelectedStation);
 	}
-	else if(GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 10000,
+	else if(GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 100000,
 		ECC_GameTraceChannel2, cParams))
 	{
 		// 轨道

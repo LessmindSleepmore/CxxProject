@@ -3,32 +3,37 @@
 
 #include "CxxStation.h"
 
+#include "Components/Image.h"
+#include "Components/TextBlock.h"
+
 // Sets default values
 ACxxStation::ACxxStation()
 {
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
-
 }
 
 // Called when the game starts or when spawned
 void ACxxStation::BeginPlay()
 {
 	Super::BeginPlay();
-
-	isHighlighted = false;
 }
 
 // Called every frame
 void ACxxStation::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	ShowPassengerStatus();
+	// ShowPassengerStatus();
 }
 
 void ACxxStation::AddPassenger(ACxxPassenger* passenger)
 {
 	passengers.Add(passenger);
+	if(horizontalBox)
+	{
+		passenger->passagerImage->RemoveFromParent();
+		horizontalBox->AddChildToHorizontalBox(passenger->passagerImage);
+	}
 }
 
 void ACxxStation::RemovePassenger(ACxxPassenger* passenger)

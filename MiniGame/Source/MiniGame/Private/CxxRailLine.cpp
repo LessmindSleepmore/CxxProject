@@ -4,34 +4,26 @@
 #include "CxxMonoRailTrain.h"
 #include "CxxRailLineSegment.h"
 
+void ACxxRailLine::Init(UClass* m1, UClass* t1, UClass* t2, UClass* b, UClass* pb, UClass* pr)
+{
+	movementComponentClass = m1;
+	tangentComponentAClass = t1;
+	tangentComponentBClass = t2;
+	railLineBaseClass = b;
+	railLinePillarBaseClass = pb;
+	railLinePillarRepeatClass = pr;
+}
+
 // Sets default values
 ACxxRailLine::ACxxRailLine()
 {
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 	
-	static ConstructorHelpers::FObjectFinder<UBlueprint> railLineBaseClassFinder(
-		TEXT("/Script/Engine.Blueprint'/Game/Assets/Actor/Rail/RailLineBase.RailLineBase'"));
-	if (railLineBaseClassFinder.Succeeded())
-	{
-		railLineBaseClass = railLineBaseClassFinder.Object->GeneratedClass;
-	}
-	
-	static ConstructorHelpers::FObjectFinder<UBlueprint> railLinePillarClassFinder(
-	TEXT("/Script/Engine.Blueprint'/Game/Assets/Actor/Rail/RailLinePillar.RailLinePillar'"));
-	if (railLinePillarClassFinder.Succeeded())
-	{
-		railLinePillarClass = railLinePillarClassFinder.Object->GeneratedClass;
-	}
-
 	root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	this->SetRootComponent(root);
 }
 
-// ACxxRailLine::ACxxRailLine(FColor color)
-// {
-// 	railLineColor = color;
-// }
 
 void ACxxRailLine::Init(FString name)
 {
@@ -102,282 +94,10 @@ void ACxxRailLine::FinishedEditRailLineFromStation()
 				break;
 			}
 		}
-	}else
-	{
-		curSelectedPoint->SetPointType(ManualPoint);
 	}
 
 	curSelectedPoint = nullptr;
 }
-
-// void ACxxRailLine::ProceeEndWithMouse(UCxxRailSegment* seg, UCxxRailSegment* preSeg)
-// {
-// 	APlayerController* playerController = GetWorld()->GetFirstPlayerController();
-// 	if (!playerController) return;
-// 		
-// 	float mouseX, mouseY;
-// 	playerController->GetMousePosition(mouseX, mouseY);
-//
-// 	FVector wLocation, wDirection;
-// 	if (playerController->DeprojectScreenPositionToWorld(mouseX, mouseY, wLocation, wDirection))
-// 	{
-// 		FHitResult hitRes;
-// 		FCollisionQueryParams cParams;
-// 			
-// 		UArrowComponent* arrowComp = Cast<UArrowComponent>(seg->stationA->GetComponentByClass(UArrowComponent::StaticClass()));
-// 		if (!arrowComp)
-// 		{
-// 			return;
-// 		}
-//             
-// 		if (GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 10000.0f,
-// 			ECC_Visibility, cParams))
-// 		{
-// 			FVector mouseWP = hitRes.Location;
-// 			if(preSeg && preSeg->stationBUsedDir != FVector::ZeroVector)
-// 			{
-// 				seg->points.Add(seg->stationA->GetActorLocation());
-// 				seg->points.Add(seg->stationA->GetActorLocation() + preSeg->stationBUsedDir * railOutLength);
-// 				seg->points.Add(mouseWP);
-//
-// 				seg->tangents.Add((seg->points[1] - seg->points[0]).GetSafeNormal());
-// 				seg->tangents.Add((seg->points[1] - seg->points[0]).GetSafeNormal());
-// 				seg->tangents.Add((seg->points[0] - seg->points[2]).GetSafeNormal());
-// 				// // 输出stationBInDir
-// 				// UE_LOG(LogTemp, Warning, TEXT("[ProceeEndWithMouse]stationBUsedDir: %s"), *preSeg->stationBUsedDir.ToString());
-// 			}
-// 			else
-// 			{
-// 				FVector station2Mouse = mouseWP - seg->stationA->GetActorLocation();
-// 				station2Mouse.Normalize();
-// 				FVector stationForward = arrowComp->GetForwardVector();
-// 				float DotProduct = FVector::DotProduct(station2Mouse, stationForward);
-// 				if (DotProduct > 0)
-// 				{
-// 					seg->points.Add(seg->stationA->GetActorLocation());
-// 					seg->points.Add(seg->stationA->GetActorLocation() + stationForward * railOutLength);
-// 					seg->points.Add(mouseWP);
-//
-// 					seg->tangents.Add((seg->points[1] - seg->points[0]).GetSafeNormal());
-// 					seg->tangents.Add((seg->points[1] - seg->points[0]).GetSafeNormal());
-// 					seg->tangents.Add((seg->points[0] - seg->points[2]).GetSafeNormal());
-// 				}
-// 				else
-// 				{
-// 					seg->points.Add(seg->stationA->GetActorLocation());
-// 					seg->points.Add(seg->stationA->GetActorLocation() - stationForward * railOutLength);
-// 					seg->points.Add(mouseWP);
-//
-// 					seg->tangents.Add((seg->points[1] - seg->points[0]).GetSafeNormal());
-// 					seg->tangents.Add((seg->points[1] - seg->points[0]).GetSafeNormal());
-// 					seg->tangents.Add((seg->points[0] - seg->points[2]).GetSafeNormal());
-// 				}	
-// 			}
-// 		}
-// 		
-// 		// 贝塞尔曲线插值
-// 		GenerateInterPoint(seg, 1, seg->points[1] - seg->points[0],
-// 			2, seg->points[0] - seg->points[2]);
-// 	}
-// }
-
-// void ACxxRailLine::ProceeEndWithStation(UCxxRailSegment* seg, int segIdx)
-// {
-// 	if(seg->stationA && seg->stationB)
-// 	{
-// 		UActorComponent* compA = seg->stationA->GetComponentByClass(UArrowComponent::StaticClass());
-// 		UActorComponent* compB = seg->stationB->GetComponentByClass(UArrowComponent::StaticClass());
-//
-// 		if(!compA || !compB) return; // TODO:为什么会获取不到呢?
-// 		
-// 		UArrowComponent* arrowCompA = Cast<UArrowComponent>(compA);
-// 		UArrowComponent* arrowCompB = Cast<UArrowComponent>(compB);
-// 		if(!arrowCompA || !arrowCompB) return;
-//
-// 		// FVector station2station = seg->stationB->GetActorLocation() - seg->stationA->GetActorLocation();
-// 		// station2station.Normalize();
-//
-// 		// stationA方向，如果有上一段，则不能复用同一个方向.
-// 		if(bStationArrowDircArray[segIdx - 1])
-// 		{
-// 			seg->points.Add(seg->stationA->GetActorLocation());
-// 			seg->points.Add(seg->stationA->GetActorLocation() - arrowCompA->GetForwardVector() * railOutLength);
-//
-// 			seg->tangents.Add((seg->points[1] - seg->points[0]).GetSafeNormal());
-// 			seg->tangents.Add((seg->points[1] - seg->points[0]).GetSafeNormal());
-// 		}else
-// 		{
-// 			seg->points.Add(seg->stationA->GetActorLocation());
-// 			seg->points.Add(seg->stationA->GetActorLocation() + arrowCompA->GetForwardVector() * railOutLength);
-//
-// 			seg->tangents.Add((seg->points[1] - seg->points[0]).GetSafeNormal());
-// 			seg->tangents.Add((seg->points[1] - seg->points[0]).GetSafeNormal());
-// 		}
-//
-// 		// stationB方向
-// 		if(bStationArrowDircArray[segIdx])
-// 		{
-// 			seg->points.Add(seg->stationB->GetActorLocation() + arrowCompB->GetForwardVector() * railOutLength);
-// 			seg->points.Add(seg->stationB->GetActorLocation());
-//
-// 			seg->tangents.Add((seg->points[2] - seg->points[3]).GetSafeNormal());
-// 			seg->tangents.Add((seg->points[2] - seg->points[3]).GetSafeNormal());
-// 		}else
-// 		{
-// 			seg->points.Add(seg->stationB->GetActorLocation() - arrowCompB->GetForwardVector() * railOutLength);
-// 			seg->points.Add(seg->stationB->GetActorLocation());
-//
-// 			seg->tangents.Add((seg->points[2] - seg->points[3]).GetSafeNormal());
-// 			seg->tangents.Add((seg->points[2] - seg->points[3]).GetSafeNormal());
-// 		}
-// 		
-// 		// 贝塞尔曲线插值
-// 		GenerateInterPoint(seg, 1, seg->points[1] - seg->points[0],
-// 			2, seg->points[2] - seg->points[3]);
-// 	}
-// }
-//
-// void ACxxRailLine::GenerateInterPoint(UCxxRailSegment* seg, int startPointIdx, FVector startPointTangent, 
-// 	int endPointIdx, FVector endPointTangent)
-// {
-// 	FVector P0 = seg->points[startPointIdx];
-// 	FVector P3 = seg->points[endPointIdx];
-//
-// 	FVector P1 = P0 + startPointTangent.GetSafeNormal() * tangentIntensity;
-// 	FVector P2 = P3 + endPointTangent.GetSafeNormal() * tangentIntensity;
-// 	
-// 	P1.Z = P0.Z;
-// 	P2.Z = P3.Z;
-//
-// 	TArray<FVector> interpolatedPoints;
-// 	TArray<FVector> tangentDirections;
-// 	
-// 	for (int i = 0; i <= insertRailPointNum; ++i)
-// 	{
-// 		float t = i / (float)insertRailPointNum;
-// 		FVector point = FMath::Pow(1 - t, 3) * P0 + 3 * FMath::Pow(1 - t, 2) * t * P1 +
-// 						3 * (1 - t) * FMath::Pow(t, 2) * P2 + FMath::Pow(t, 3) * P3;
-// 		FVector tangent = 3 * FMath::Pow(1 - t, 2) * (P1 - P0) + 6 * (1 - t) * t * (P2 - P1) +
-// 						  3 * FMath::Pow(t, 2) * (P3 - P2);
-// 		tangent.Normalize();
-// 		interpolatedPoints.Add(point);
-// 		tangentDirections.Add(tangent);
-// 	}
-//
-// 	interpolatedPoints.RemoveAt(0);
-// 	tangentDirections.RemoveAt(0);
-// 	interpolatedPoints.RemoveAt(interpolatedPoints.Num() - 1);
-// 	tangentDirections.RemoveAt(tangentDirections.Num() - 1);
-// 	
-// 	seg->points.Insert(interpolatedPoints, startPointIdx + 1);
-// 	seg->tangents.Insert(tangentDirections, startPointIdx + 1);
-// 	
-// 	// TODO:这里的逻辑其实是生成的有点复杂了，完全可以简化，不过考虑到可能不用Bizer，所以先不优化.
-// 	seg->tangents[seg->points.Num() - 2] = -seg->tangents[seg->points.Num() - 2];
-// 	seg->tangents[seg->points.Num() - 1] = -seg->tangents[seg->points.Num() - 1];
-// }
-
-// void ACxxRailLine::UpdataSegment(UCxxRailSegment* seg)
-// {
-// 	if(!seg->points.IsEmpty())
-// 	{
-// 		seg->points.Empty();;
-// 	}
-// 	if(!seg->tangents.IsEmpty())
-// 	{
-// 		seg->tangents.Empty();
-// 	}
-// 	// ProceeEndWithStation(seg, railSegments.Num() > 1 ? railSegments[railSegments.Num() - 2] : nullptr);
-// }
-
-// void ACxxRailLine::FinishEdit()
-// {
-// 	// isEdit = false;
-//
-// 	// 遍历segments，在每个segments的两点之间生成一个spline mesh component
-// 	if(!railLineBaseClass || !railLineBaseMesh)
-// 	{
-// 		UE_LOG(LogTemp, Warning, TEXT("railLineBaseClass or railLineBaseMesh is nullptr"));
-// 		return;
-// 	}
-// 	
-// 	for(auto seg : railSegments)
-// 	{
-// 		for(int i = 0; i < seg->points.Num(); i++)
-// 		{
-// 			if(i == seg->points.Num() - 1)
-// 			{
-// 				break;
-// 			}
-// 			USplineMeshComponent* spMeshComp = NewObject<USplineMeshComponent>(this, railLineBaseClass);
-// 			// spMeshComp->SetStaticMesh(railLineBaseMesh);
-// 			spMeshComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-// 			
-// 			// 设置参数
-// 			// TODO:这里是直接设置了一个高度
-// 			spMeshComp->SetStartPosition(seg->points[i] + FVector(0, 0, 50));
-// 			spMeshComp->SetStartTangent(seg->tangents[i]);
-// 			spMeshComp->SetEndPosition(seg->points[i + 1] + FVector(0, 0, 50));
-// 			spMeshComp->SetEndTangent(seg->tangents[i + 1]);
-// 			spMeshComp->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Block);
-// 			
-			// spMeshComp->AttachToComponent(GetRootComponent(), FAttachmentTransformRules::KeepWorldTransform);
-// 			spMeshComp->RegisterComponent();
-//
-// 			meshCompName2Seg.Add(spMeshComp, seg);
-// 			railLineMeshComponents.Add(spMeshComp);
-// 		}
-// 	}
-//
-// 	// 记录距离决定当前point是否放置支撑柱
-// 	float distance = 0.f;
-// 	// 每个点生成一个支撑柱
-// 	for(auto seg : railSegments)
-// 	{
-// 		for(int i = 1; i < seg->points.Num() - 1; i++)
-// 		{
-// 			distance += (seg->points[i] - seg->points[i - 1]).Size();
-// 			if(distance <= pillarIntervalDist)
-// 			{
-// 				continue;
-// 			}
-// 			
-// 			UStaticMeshComponent* pillarMeshComp = NewObject<UStaticMeshComponent>(this, railLinePillarClass);
-// 			// pillarMeshComp->SetStaticMesh(railLinePillarMesh);
-// 			pillarMeshComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-// 			pillarMeshComp->SetRelativeLocation(seg->points[i]);
-// 			pillarMeshComp->SetRelativeScale3D(FVector(0.5, 0.5, 0.37));
-// 			pillarMeshComp->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Block);
-// 			
-// 			// 设置支撑住按切线旋转
-// 			pillarMeshComp->SetWorldRotation(seg->tangents[i].Rotation());
-// 			pillarMeshComp->AttachToComponent(GetRootComponent(), FAttachmentTransformRules::KeepWorldTransform);
-// 			pillarMeshComp->RegisterComponent();
-//
-// 			meshCompName2Seg.Add(pillarMeshComp, seg);
-// 			railLineMeshComponents.Add(pillarMeshComp);
-// 			distance = 0;
-// 		}
-// 	}
-// 	
-// 	// Debug point和tangent
-// 	// VisiablePointAndTangent();
-// }
-
-// void ACxxRailLine::VisiablePointAndTangent()
-// {
-// 	// 遍历所有的URailSegment，遍历points绘制dubug球，tangents绘制debug方向
-// 	for(auto seg : railSegments)
-// 	{
-// 		for(int i = 0; i < seg->points.Num(); i++)
-// 		{
-// 			DrawDebugSphere(GetWorld(), seg->points[i], 5, 4, FColor::Red, true, 100.f,
-// 				0, 4.f);
-// 			DrawDebugDirectionalArrow(GetWorld(), seg->points[i], seg->points[i] + seg->tangents[i] * 15,
-// 				4, FColor::Green, true, 100.f, 0, 4.f);
-// 		}
-// 	}
-// }
 
 TArray<UCxxRailLineSegment*> ACxxRailLine::IsCurSelectedPointNeighbor(ACxxStation* station)
 {
@@ -474,10 +194,13 @@ UCxxPathControlPoint* ACxxRailLine::AddStation(ACxxStation* station, bool bIsArr
 	if(stations.IsEmpty())
 	{
 		UCxxPathControlPoint* controlPoint1 = NewObject<UCxxPathControlPoint>(this);
+		controlPoint1->Init(movementComponentClass, tangentComponentAClass, tangentComponentBClass);
 		controlPoint1->RegisterComponent();
 		UCxxPathControlPoint* controlPoint2 = NewObject<UCxxPathControlPoint>(this);
+		controlPoint2->Init(movementComponentClass, tangentComponentAClass, tangentComponentBClass);
 		controlPoint2->RegisterComponent();
 		UCxxPathControlPoint* controlPoint3 = NewObject<UCxxPathControlPoint>(this);
+		controlPoint3->Init(movementComponentClass, tangentComponentAClass, tangentComponentBClass);
 		controlPoint3->RegisterComponent();
 		
 		if(bIsArrowDir){
@@ -509,8 +232,8 @@ UCxxPathControlPoint* ACxxRailLine::AddStation(ACxxStation* station, bool bIsArr
 		controlPoint2->SetSegment(seg1, seg2);
 		controlPoint3->SetSegment(seg2, nullptr);
 		
-		seg1->Init(controlPoint1, controlPoint2);
-		seg2->Init(controlPoint2, controlPoint3);
+		seg1->Init(controlPoint1, controlPoint2, pillarIntervalDist, railLineBaseClass, railLinePillarBaseClass, railLinePillarRepeatClass);
+		seg2->Init(controlPoint2, controlPoint3, pillarIntervalDist, railLineBaseClass, railLinePillarBaseClass, railLinePillarRepeatClass);
 		
 		railSegments.Add(seg1);
 		railSegments.Add(seg2);
@@ -522,12 +245,15 @@ UCxxPathControlPoint* ACxxRailLine::AddStation(ACxxStation* station, bool bIsArr
 	{
 		if(!curSelectedPoint) return nullptr;
 		UCxxPathControlPoint* controlPoint1 = NewObject<UCxxPathControlPoint>(this);
+		controlPoint1->Init(movementComponentClass, tangentComponentAClass, tangentComponentBClass);
 		controlPoint1->AttachToComponent(root, FAttachmentTransformRules::KeepRelativeTransform);
 		controlPoint1->RegisterComponent();
 		UCxxPathControlPoint* controlPoint2 = NewObject<UCxxPathControlPoint>(this);
+		controlPoint2->Init(movementComponentClass, tangentComponentAClass, tangentComponentBClass);
 		controlPoint2->AttachToComponent(root, FAttachmentTransformRules::KeepRelativeTransform);
 		controlPoint2->RegisterComponent();
 		UCxxPathControlPoint* controlPoint3 = NewObject<UCxxPathControlPoint>(this);
+		controlPoint3->Init(movementComponentClass, tangentComponentAClass, tangentComponentBClass);
 		controlPoint3->AttachToComponent(root, FAttachmentTransformRules::KeepRelativeTransform);
 		controlPoint3->RegisterComponent();
 		
@@ -577,19 +303,25 @@ UCxxPathControlPoint* ACxxRailLine::AddStation(ACxxStation* station, bool bIsArr
 		seg2->RegisterComponent();
 		seg3->RegisterComponent();
 		
-		bIsForward?curSelectedPoint->nextSegment->Init(controlPoint3 ,curSelectedPoint->nextSegment->endPoint):
-		curSelectedPoint->preSegment->Init(curSelectedPoint->preSegment->startPoint, controlPoint1);
-		// curSelectedPoint->preSegment->SetEndPoint(controlPoint1);
+		bIsForward?curSelectedPoint->nextSegment->Init(controlPoint3 ,curSelectedPoint->nextSegment->endPoint, pillarIntervalDist,
+			railLineBaseClass, railLinePillarBaseClass, railLinePillarRepeatClass):
+		curSelectedPoint->preSegment->Init(curSelectedPoint->preSegment->startPoint, controlPoint1, pillarIntervalDist,
+			railLineBaseClass, railLinePillarBaseClass, railLinePillarRepeatClass);
+
 		bIsForward?controlPoint1->SetSegment(seg1, seg2):controlPoint1->SetSegment(curSelectedPoint->preSegment, seg1);
 		bIsForward?controlPoint2->SetSegment(seg2, seg3):controlPoint2->SetSegment(seg1, seg2);
 		bIsForward?controlPoint3->SetSegment(seg3, curSelectedPoint->nextSegment):controlPoint3->SetSegment(seg2, seg3);
 		bIsForward?curSelectedPoint->SetSegment(curSelectedPoint->preSegment, seg1):curSelectedPoint->SetSegment(seg3, curSelectedPoint->nextSegment);
 		
-		bIsForward?seg1->Init(curSelectedPoint, controlPoint1):seg1->Init(controlPoint1, controlPoint2);
-		bIsForward?seg2->Init(controlPoint1, controlPoint2):seg2->Init(controlPoint2, controlPoint3);
-		bIsForward?seg3->Init(controlPoint2, controlPoint3):seg3->Init(controlPoint3, curSelectedPoint);
-
-		// curSelectedPoint = controlPoint3;
+		bIsForward?seg1->Init(curSelectedPoint, controlPoint1, pillarIntervalDist,
+			railLineBaseClass, railLinePillarBaseClass, railLinePillarRepeatClass):seg1->Init(controlPoint1, controlPoint2, pillarIntervalDist,
+			railLineBaseClass, railLinePillarBaseClass, railLinePillarRepeatClass);
+		bIsForward?seg2->Init(controlPoint1, controlPoint2, pillarIntervalDist,
+			railLineBaseClass, railLinePillarBaseClass, railLinePillarRepeatClass):seg2->Init(controlPoint2, controlPoint3, pillarIntervalDist,
+			railLineBaseClass, railLinePillarBaseClass, railLinePillarRepeatClass);
+		bIsForward?seg3->Init(controlPoint2, controlPoint3, pillarIntervalDist,
+			railLineBaseClass, railLinePillarBaseClass, railLinePillarRepeatClass):seg3->Init(controlPoint3, curSelectedPoint, pillarIntervalDist,
+			railLineBaseClass, railLinePillarBaseClass, railLinePillarRepeatClass);
 
 		if(insertSeg && !bIsForward)
 		{
@@ -601,59 +333,80 @@ UCxxPathControlPoint* ACxxRailLine::AddStation(ACxxStation* station, bool bIsArr
 		railSegments.Add(seg2);
 		railSegments.Add(seg3);
 	}
-	
-	// 更新段
-	// if(idx != 0 && idx != stations.Num())
-	// {
-	// 	UCxxRailSegment* curSeg = railSegments[idx - 1];
-	// 	curSeg->stationB = station;
-	// 	UCxxRailSegment* newSeg = NewObject<UCxxRailSegment>(this);
-	// 	newSeg->init(station, stations[idx]);
-	// 	railSegments.Insert(newSeg, idx);
-	// }
-	// else if(idx == 0)
-	// {
-	// 	if(!stations.IsEmpty())
-	// 	{
-	// 		UCxxRailSegment* curSeg = railSegments[idx];
-	// 		curSeg->stationB = station;
-	// 		UCxxRailSegment* newSeg = NewObject<UCxxRailSegment>(this);
-	// 		newSeg->init(station, stations[idx]);
-	// 		railSegments.Insert(newSeg, idx + 1);			
-	// 	}
-	// }
-	// else if(idx == stations.Num())
-	// {
-	// 	UCxxRailSegment* curSeg = railSegments[idx];
-	// 	curSeg->stationB = station;
-	// 	UCxxRailSegment* newSeg = NewObject<UCxxRailSegment>(this);
-	// 	newSeg->init(station, nullptr);
-	// 	railSegments.Add(newSeg);
-	// }
-
-	
-	// 插入站点
-	// if(idx == stations.Num())
-	// {
-	// 	stations.Add(station);de
-	// 	// bStationArrowDircArray.Add(bIsArrowDir);
-	// }else
-	// {
-	// 	stations.Insert(station, idx);
-	// 	// bStationArrowDircArray.Insert(bIsArrowDir, idx);
-	// }
 	stations.Add(station);
 	return curSelectedPoint;
 }
 
+// point1鼠标点, point2站点
+UCxxPathControlPoint* ACxxRailLine::AddRingLineStation(ACxxStation* station, UCxxPathControlPoint* point1, UCxxPathControlPoint* point2)
+{
+	UArrowComponent* comp = Cast<UArrowComponent>(station->GetComponentByClass(UArrowComponent::StaticClass()));
+	if(!point2->preSegment)
+	{
+		// 计算comp->GetForwardVector()是否和point2->nextSegment->endPoint->location - point2->location同方向
+		bool bSameDir = FVector::DotProduct(comp->GetForwardVector(), point2->nextSegment->endPoint->location - point2->location) > 0;
+		if(bSameDir)
+		{
+			point1->Init(station->GetActorLocation() - comp->GetForwardVector() * railOutLength,
+				comp->GetForwardVector() * tangentIntensity, FixedPoint, point1->preSegment, point1->nextSegment);
+		}else
+		{
+			point1->Init(station->GetActorLocation() + comp->GetForwardVector() * railOutLength,
+				-comp->GetForwardVector() * tangentIntensity, FixedPoint, point1->preSegment, point1->nextSegment);
+		}
+		UCxxRailLineSegment* seg = NewObject<UCxxRailLineSegment>(this);
+		seg->RegisterComponent();
+		point1->SetSegment(point1->preSegment,seg);
+		point2->SetSegment(seg, point2->nextSegment);
+		seg->Init(point1, point2, pillarIntervalDist,railLineBaseClass, railLinePillarBaseClass, railLinePillarRepeatClass);
+		point1->preSegment->SetEndPoint(point1);
+		railSegments.Add(seg);
+		ringLineSegment = seg;
+	}else
+	{
+		bool bSameDir = FVector::DotProduct(comp->GetForwardVector(), point2->preSegment->startPoint->location - point2->location) > 0;
+		if(bSameDir)
+		{
+			point1->Init(station->GetActorLocation() - comp->GetForwardVector() * railOutLength,
+				-comp->GetForwardVector() * tangentIntensity, FixedPoint, point1->preSegment, point1->nextSegment);
+		}else
+		{
+			point1->Init(station->GetActorLocation() + comp->GetForwardVector() * railOutLength,
+				comp->GetForwardVector() * tangentIntensity, FixedPoint, point1->preSegment, point1->nextSegment);
+		}
+		UCxxRailLineSegment* seg = NewObject<UCxxRailLineSegment>(this);
+		seg->RegisterComponent();
+		point1->SetSegment(seg, point1->nextSegment);
+		point2->SetSegment(point2->preSegment, seg);
+		seg->Init(point2, point1, pillarIntervalDist, railLineBaseClass, railLinePillarBaseClass, railLinePillarRepeatClass);
+		point1->nextSegment->SetStartPoint(point1);
+		railSegments.Add(seg);
+		ringLineSegment = seg;
+	}
+	ringLinePoint = point1;
+	bIsRingLine = true;
+	ringLineStation = station;
+	return point1;
+}
+
+UCxxPathControlPoint* ACxxRailLine::DeleteRingLineStation(ACxxStation* station)
+{
+	ringLineSegment->startPoint->nextSegment = nullptr;
+	ringLineSegment->endPoint->preSegment = nullptr;
+	ringLineSegment->Destroy();
+	railSegments.Remove(ringLineSegment);
+	ringLineSegment = nullptr;
+	
+	ringLinePoint->Init(station->GetActorLocation(),
+				FVector::Zero(), PointType::ManualPoint, ringLinePoint->preSegment, ringLinePoint->nextSegment);
+	
+	bIsRingLine = false;
+	ringLineStation = nullptr;
+	return ringLinePoint;
+}
+
 UCxxPathControlPoint* ACxxRailLine::DeleteStation(ACxxStation* station)
 {
-	if(debugCount >= 1)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("debugCount = 1"));
-		debugCount = 0;
-	}
-	debugCount++;
 	if(!curSelectedPoint) return nullptr;
 	// 是从修改-从站点修改过来的
 	if(curSelectedPoint->GetPointType() == StationPoint)
@@ -662,12 +415,12 @@ UCxxPathControlPoint* ACxxRailLine::DeleteStation(ACxxStation* station)
 		{
 			// 删除该站点并修改为手动控制点
 			stations.Remove(station);
+			station->isHighlighted = true;
 			station->SwitchOutlineEffect();
 
 			// 修改当前点的属性
 			curSelectedPoint->AttachToComponent(root, FAttachmentTransformRules::KeepRelativeTransform);
 			curSelectedPoint->SetPointType(PointType::ManualPoint);
-			// curSelectedPoint->SetVisible(true);
 
 			// 删除左右的点和段
 			if(auto nSeg = curSelectedPoint->nextSegment)
@@ -715,6 +468,7 @@ UCxxPathControlPoint* ACxxRailLine::DeleteStation(ACxxStation* station)
 	if(stations.Num() > 1 && stations.Contains(station) && !neighborSegments.IsEmpty())
 	{
 		stations.Remove(station);
+		station->isHighlighted = true;
 		station->SwitchOutlineEffect();
 
 		UCxxPathControlPoint* mousePoint = neighborSegments[0]->startPoint;
@@ -740,50 +494,41 @@ UCxxPathControlPoint* ACxxRailLine::DeleteStation(ACxxStation* station)
 			railSegments.Remove(seg);
 			seg->Destroy();
 		}
-		
-		// while(true)
-		// {
-		// 	if(!curSelectedPoint) break;
-		// 	if(curSelectedPoint->GetPointType() != StationPoint)
-		// 	{
-		// 		controlPoints.Remove(curSelectedPoint);
-		// 		curSelectedPoint->DestroyComponent();
-		// 		railSegments.Remove(curSelectedPoint->preSegment);
-		// 		curSelectedPoint->preSegment->Destroy();
-		// 		curSelectedPoint = curSelectedPoint->preSegment->startPoint;
-		// 	}
-		// 	else
-		// 	{
-		// 		controlPoints.Remove(curSelectedPoint);
-		// 		curSelectedPoint->DestroyComponent();
-		// 		railSegments.Remove(curSelectedPoint->preSegment);
-		// 		curSelectedPoint->preSegment->Destroy();
-		// 		curSelectedPoint = curSelectedPoint->preSegment->startPoint;
-		// 		curSelectedPoint->SetPointType(ManualPoint);
-		// 		break;
-		// 	}
-		// }
 	}
 	return curSelectedPoint;
 }
 
-// int ACxxRailLine::DeleteStation(ACxxStation* station)
-// {
-// 	int idx = stations.Find(station);
-// 	if(idx != INDEX_NONE)
-// 	{
-// 		// 检查是否有合法的idx +1和idx - 1
-// 		if(idx + 1 < railSegments.Num())
-// 		{
-// 			railSegments[idx + 1]->stationA = railSegments[idx]->stationA;
-// 		}
-// 		stations.RemoveAt(idx);
-// 		railSegments.RemoveAt(idx);
-// 		bStationArrowDircArray.RemoveAt(idx);
-// 	}
-// 	return idx;
-// }
 
+TArray<ACxxStation*> ACxxRailLine::GetNeighborStations(ACxxStation* station)
+{
+	TArray<ACxxStation*> res;
+	UCxxPathControlPoint* point = GetPointFromStation(station);
+	if(!point) return res;
+	// 检查next的站
+	UCxxPathControlPoint* tPoint = point;
+	while(tPoint->nextSegment)
+	{
+		tPoint = tPoint->nextSegment->endPoint;
+		if(tPoint->GetPointType() == PointType::StationPoint)
+		{
+			res.Add(tPoint->station);
+			break;
+		}
+	}
+
+	tPoint = point;
+	while(tPoint->preSegment)
+	{
+		tPoint = tPoint->preSegment->startPoint;
+		if(tPoint->GetPointType() == PointType::StationPoint)
+		{
+		 res.Add(tPoint->station);
+		 break;
+		}
+	}
+
+	return res;
+}
 
 // Called when the game starts or when spawned
 void ACxxRailLine::BeginPlay()
@@ -795,128 +540,24 @@ void ACxxRailLine::BeginPlay()
 void ACxxRailLine::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	// if(isEdit)
-	// {
-	// 	UpdateRailLine();
-	// 	DrawVisableLine();	
-	// }
 }
 
-// void ACxxRailLine::DrawVisableLine()
-// {
-// 	for(auto seg : railSegments)
-// 	{
-// 		for(int i = 0; i < seg->points.Num(); i++)
-// 		{
-// 			if(i == seg->points.Num() - 1)
-// 			{
-// 				break;
-// 			}
-// 			DrawDebugLine(GetWorld(), seg->points[i], seg->points[i + 1], railLineColor, false, 0.f, 0, 10.f);
-// 		}
-// 	}
-// }
-
-// void ACxxRailLine::UpdateRailLine()
-// {
-// 	// 遍历Segment并更新
-// 	for(int i = 0; i < railSegments.Num(); i++)
-// 	{
-// 		UCxxRailSegment* seg = railSegments[i];
-// 		if(!seg->points.IsEmpty())
-// 		{
-// 			seg->points.Empty();
-// 		}
-// 		if(!seg->tangents.IsEmpty())
-// 		{
-// 			seg->tangents.Empty();
-// 		}
-// 		if(!seg->pointType.IsEmpty())
-// 		{
-// 			seg->pointType.Empty();
-// 		}
-// 		
-// 		if(seg->stationA && seg->stationB)
-// 		{
-// 			ProceeEndWithStation(seg, i);
-// 		}
-// 	}
-	
-	// if(!segment->points.IsEmpty())
-	// {
-	// 	segment->points.Empty();
-	// }
-	// if(!segment->tangents.IsEmpty())
-	// {
-	// 	segment->tangents.Empty();
-	// }
-	// if(!segment->pointType.IsEmpty())
-	// {
-	// 	segment->pointType.Empty();
-	// }
-	//
-	// if(segment->stationA && segment->stationB)
-	// {
-	// 	ProceeEndWithStation(segment,
-	// 		railSegments.Find(segment) > 0 ? railSegments[railSegments.Find(segment) - 1] : nullptr,
-	// 		railSegments.Find(segment) < railSegments.Num() - 1 ? railSegments[railSegments.Find(segment) + 1] : nullptr);
-	// }
-	
-	// if(!railSegments.IsEmpty())
-	// {
-	// 	UCxxRailSegment* endSeg = railSegments[railSegments.Num() - 1];
-	// 	if(!endSeg->points.IsEmpty())
-	// 	{
-	// 		endSeg->points.Empty();
-	// 	}
-	// 	if(!endSeg->tangents.IsEmpty())
-	// 	{
-	// 		endSeg->tangents.Empty();
-	// 	}
-	// 	
-	// 	if(!endSeg)
-	// 	{
-	// 		ProceeEndWithMouse(endSeg, railSegments.Num() > 1 ? railSegments[railSegments.Num() - 2] : nullptr);
-	// 	}else
-	// 	{
-	// 		ProceeEndWithStation(endSeg, railSegments.Num() > 1 ? railSegments[railSegments.Num() - 2] : nullptr);
-	// 	}
-	// }
-// }
-//
-// void ACxxRailLine::UpdateRailLineSegmentWithMouseLocation(UCxxRailSegment* seg, FVector mouseLocation)
-// {
-// 	if(curEditSegment && curEditSegment != seg){
-// 		
-// 	}
-// 	curEditSegment = seg;
-// 	
-// 	// 更新当前段
-// }
-//
-// void ACxxRailLine::SetRailColor(FColor color)
-// {
-// 	railLineColor = color;
-// }
-
-void ACxxRailLine::SwitchHightLightEffect()
+void ACxxRailLine::SwitchHightLightEffect(bool bVisiblePoint)
 {
 	bIsHighlighted = !bIsHighlighted;
 	for(auto seg : railSegments)
 	{
-		if(seg->splineMesh)
-		{
-			seg->splineMesh->SetRenderCustomDepth(bIsHighlighted);
-		}
-		// comp->SetRenderCustomDepth(bIsHighlighted);
+		seg->SwitchHightLightEffect(bIsHighlighted);
 	}
 	for(auto station:stations)
 	{
 		station->SwitchOutlineEffect();
 	}
-	for(auto point:controlPoints)
+	if (bVisiblePoint)
 	{
-		point->SetVisible(bIsHighlighted);
+		for(auto point:controlPoints)
+		{
+			point->SetVisible(bIsHighlighted);
+		}	
 	}
 }
-

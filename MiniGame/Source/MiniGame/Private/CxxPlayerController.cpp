@@ -4,6 +4,7 @@
 #include "CxxPlayerController.h"
 
 #include "Kismet/GameplayStatics.h"
+#include "Math/UnitConversion.h"
 
 void ACxxPlayerController::BeginPlay()
 {
@@ -15,15 +16,18 @@ void ACxxPlayerController::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("Find DispatchManager"));
 		bGetDispatchManager = true;
 	}
+	palyerCamera = GetPawn()->FindComponentByClass<UCameraComponent>();
 }
 
 void ACxxPlayerController::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	// if (bDrawRailLine)
-	// {
-	// 	CheckMouseOnStation();
-	// }
+	DeltaSeconds = DeltaSeconds / GetWorld()->GetWorldSettings()->TimeDilation;
+	CameraMovementControl(DeltaSeconds);
+	if(zoomScale > 0) zoomScale -= DeltaSeconds * 2.f;
+	if(zoomScale < 0) zoomScale += DeltaSeconds * 2.f;
+	if(zoomScale!= 0 && zoomScale > -0.05 && zoomScale < 0.05) zoomScale = 0;
+	CameraForwardControl(DeltaSeconds);
 }
 
 void ACxxPlayerController::SetupInputComponent()
@@ -31,8 +35,7 @@ void ACxxPlayerController::SetupInputComponent()
 	Super::SetupInputComponent();
 	check(InputComponent);
 	
-	// InputComponent->BindAction("CheckMouseInActor", IE_Pressed, this, &ACxxPlayerController::OnLeftMousePressed);
-	// InputComponent->BindAction("CheckMouseInActor", IE_Released, this, &ACxxPlayerController::OnLeftMouseReleased);
+	InputComponent->BindAxis("MouseScroll", this, &ACxxPlayerController::SetZoomScale);
 }
 
 void ACxxPlayerController::SetMouseVisable()
@@ -44,174 +47,99 @@ void ACxxPlayerController::SetMouseVisable()
 	this->bShowMouseCursor = true;
 }
 
-void ACxxPlayerController::OnLeftMousePressed()
+void ACxxPlayerController::CameraMovementControl(float DeltaTime)
 {
-	if(bGetDispatchManager)
-	{
-		// dispatchManager->StartCreateRailLine();
+	int32 screenWidth, screenHeight;
+	GetViewportSize(screenWidth, screenHeight);
+	float mouseX, mouseY;
+	GetMousePosition(mouseX, mouseY);
+    if(mouseX < 1 || mouseY < 1 || mouseX > screenWidth || mouseY > screenHeight) return;
 
+	// UE_LOG(LogTemp, Warning, TEXT("mouseX: %f, mouseY: %f"), mouseX, mouseY);
+	
+	float edgeThreshold = 100.0f;
+	float speed = 0;
+
+	APawn* playerPawn = GetPawn();
+	if (!playerPawn || !palyerCamera) return;
+	if(palyerCamera->ProjectionMode == ECameraProjectionMode::Type::Perspective)
+	{
+		speed = 2000.0f * GetPawn()->GetActorLocation().Z / 1600.f;
+	}else
+	{
+		speed = 4500.0f * GetPawn()->GetActorLocation().Z / 1600.f;
 	}
 	
-	// float mouseX, mouseY;
-	// this->GetMousePosition(mouseX, mouseY);
-	//
-	// FVector wLocation, wDirection;
-	// this->DeprojectScreenPositionToWorld(mouseX, mouseY, wLocation, wDirection);
-	//
-	// FHitResult hitRes;
-	// FCollisionQueryParams cParams;
-	// cParams.AddIgnoredActor(this);
-	//
-	// if (GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 10000,
-	// 	StationChannel, cParams))
-	// {
-	// 	// 加入空的stations列表中
-	// 	AStation* station = Cast<AStation>(hitRes.GetActor());
-	// 	SwapRailLine(station);
-	// 	if(!railLine->stations.IsEmpty()) UE_LOG(LogTemp, Warning, TEXT("【ERROR】stations is not empty!"));
-	// 	
-	// 	railLine->stations.Empty();
-	// 	railLine->stations.Add(station);
-	// 	bDrawRailLine = true;
-	// 	station->SwitchOutlineEffect();
-	// }
-}
-
-void ACxxPlayerController::OnLeftMouseReleased()
-{
-	if(bGetDispatchManager)
+	FVector palyerCameraLocation = GetPawn()->GetActorLocation();
+    
+	if (mouseX < edgeThreshold)
 	{
-		// dispatchManager->EndCreateRailLine();
+		palyerCameraLocation.X += speed * DeltaTime * (edgeThreshold - mouseX) / edgeThreshold;
+		palyerCameraLocation.X = FMath::Clamp(palyerCameraLocation.X, -5000.f, 25000.f);
 	}
-	// if(bDrawRailLine)
-	// {
-	// 	bDrawRailLine = false;
-	//     for(AStation* station : railLine->stations)
-	// 	{
-	// 		station->SwitchOutlineEffect();
-	// 	}
-	// 	if(railLine->stations.Num() != 1){
-	// 		EndRailLineDraw(true);
-	// 	}else
-	// 	{
-	// 		EndRailLineDraw(false);
-	// 	}
-	// }
+	else if (mouseX > screenWidth - edgeThreshold)
+	{
+		palyerCameraLocation.X -= speed * DeltaTime * (edgeThreshold - (screenWidth - mouseX)) / edgeThreshold;
+		palyerCameraLocation.X = FMath::Clamp(palyerCameraLocation.X, -5000.f, 25000.f);
+	}
+	if (mouseY < edgeThreshold)
+	{
+		palyerCameraLocation.Y += speed * DeltaTime * (edgeThreshold - mouseY) / edgeThreshold;
+		palyerCameraLocation.Y = FMath::Clamp(palyerCameraLocation.Y, -5000.f, 25000.f);
+	}
+	else if (mouseY > screenHeight - edgeThreshold)
+	{
+		palyerCameraLocation.Y -= speed * DeltaTime * (edgeThreshold - (screenHeight - mouseY)) / edgeThreshold;
+		palyerCameraLocation.Y = FMath::Clamp(palyerCameraLocation.Y, -5000.f, 25000.f);
+	}
+
+	GetPawn()->SetActorLocation(palyerCameraLocation);
 }
 
-// void ACxxPlayerController::CheckMouseOnStation()
-// {
-// 	float mouseX, mouseY;
-// 	this->GetMousePosition(mouseX, mouseY);
-// 	
-// 	FVector wLocation, wDirection;
-// 	this->DeprojectScreenPositionToWorld(mouseX, mouseY, wLocation, wDirection);
-// 	
-// 	FHitResult hitRes;
-// 	FCollisionQueryParams cParams;
-// 	cParams.AddIgnoredActor(this);;
-// 	
-// 	if (GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 10000,
-// 		StationChannel, cParams))
-// 	{
-// 		AStation* station = Cast<AStation>(hitRes.GetActor());
-//
-// 		// 当前station切换才继续逻辑
-// 		if(lastStation == station) return;
-// 		lastStation = station;
-//
-// 		UE_LOG(LogTemp, Warning, TEXT("station: %s"), *station->GetName());
-// 		
-// 		if(station && !railLine->stations.Contains(station))
-// 		{
-// 			// 添加新站
-// 			railLine->stations.Add(station);
-// 			station->SwitchOutlineEffect();
-// 			
-// 			// 修改最后一个段的状态,并更新为车站的连接方式
-// 			railLine->railSegments.Last()->stationB = station;
-// 			railLine->railSegments.Last()->bEndIsStation = true;
-// 			railLine->UpdataSegment(railLine->railSegments.Last());
-//
-// 			// 添加一个新段
-// 			URailSegment* newSeg = NewObject<URailSegment>(railLine);
-// 			newSeg->init(station);
-// 			railLine->railSegments.Add(newSeg);
-// 		}else if(station && railLine->stations.Contains(station))
-// 		{
-// 			// 如果是最后一个站非起始站则移除
-// 			if(railLine->stations.Num() >= 2 && railLine->stations.Last() == station)
-// 			{
-// 				AStation* popStation = railLine->stations.Pop();
-// 				popStation->SwitchOutlineEffect();
-// 				popStation = nullptr;
-//
-// 				URailSegment* segment = railLine->railSegments.Top();
-// 				railLine->railSegments.Pop();
-// 				segment->MarkAsGarbage();
-// 				segment = nullptr;
-// 				
-// 				railLine->railSegments.Last()->bEndIsStation = false;
-// 				railLine->railSegments.Last()->stationB = nullptr;
-// 			}
-// 		}
-// 	}
-// 	else
-// 	{
-// 		lastStation = nullptr;
-// 	}
-// }
+void ACxxPlayerController::CameraForwardControl(float DeltaTime)
+{
+	APawn* playerPawn = GetPawn();
+	if (!playerPawn || !palyerCamera) return;
+	if(palyerCamera->ProjectionMode == ECameraProjectionMode::Type::Perspective){
+		APlayerCameraManager* palyerCameraManager = GetWorld()->GetFirstPlayerController()->PlayerCameraManager;
+		if (!palyerCameraManager) return;
 
-// void ACxxPlayerController::SwapRailLine(AStation* station)
-// {
-// 	if(railLine)
-// 	{
-// 		railLine->Destroy();
-// 		railLine = nullptr;
-// 	}
-//
-// 	
-// 	railLine = GetWorld()->SpawnActor<ARailLine>(ARailLine::StaticClass());
-//
-// 	// 设置线路颜色
-// 	FColor railColor = GetRailColor();
-// 	railLine->SetRailColor(railColor);
-// 	railLine->Init();
-// 	
-// 	// 添加当前车站
-// 	railLine->stations.Add(station);
-//
-// 	// 添加一个新段
-// 	URailSegment* newSeg = NewObject<URailSegment>(railLine);
-// 	newSeg->init(station);
-// 	railLine->railSegments.Add(newSeg);
-// }
-//
-// void ACxxPlayerController::EndRailLineDraw(bool bIsCreate)
-// {
-// 	if(bIsCreate)
-// 	{
-// 		if(!railLine->railSegments.Last()->bEndIsStation)
-// 		{
-// 			URailSegment* segment = railLine->railSegments.Top();
-// 			railLine->railSegments.Pop();
-// 			segment->MarkAsGarbage();
-// 			segment = nullptr;
-// 		}
-// 		railLines.Add(railLine);
-// 		railLine->FinishEdit(); // 结束编辑生成轨道实例
-// 		railLine = nullptr;
-// 	}
-// 	else
-// 	{
-// 		railLine->Destroy();
-// 		railLine = nullptr;
-// 	}
-// }
-//
-// FColor ACxxPlayerController::GetRailColor()
-// {
-// 	FColor resColor = railColors[railColorIdx];
-// 	railColorIdx = (railColorIdx + 1) % railColors.Num();
-// 	return resColor;
-// }
+		FVector forward = palyerCameraManager->GetActorForwardVector(); 
+		// 1650 15000
+		float speed = 5000.0f;
+		FVector movement = forward * zoomScale * speed * DeltaTime * playerPawn->GetActorLocation().Z / 2000.f;
+		FVector currentLoc = playerPawn->GetActorLocation();
+		FVector predictedLoc = currentLoc + movement;          
+
+		float factor = 1.0f;
+		if (predictedLoc.Z < 1650.0f)
+		{
+			float allowedZ = 1650.0f - currentLoc.Z; 
+			float plannedZ = movement.Z;
+			factor = allowedZ / plannedZ; 
+		}
+		else if (predictedLoc.Z > 15000.0f)
+		{
+			float allowedZ = 15000.0f - currentLoc.Z;
+			float plannedZ = movement.Z;
+			factor = allowedZ / plannedZ;
+		}
+		movement *= factor;
+		playerPawn->AddActorWorldOffset(movement, true);
+	}else
+	{
+		float speed = 7000.0f;
+		// 限制缩放
+		palyerCamera->OrthoWidth = FMath::Clamp(
+			palyerCamera->OrthoWidth - zoomScale * speed * DeltaTime * playerPawn->GetActorLocation().Z / 2000.f,
+			6500.0f,
+			50000.0f);
+		
+	}
+}
+
+void ACxxPlayerController::SetZoomScale(float value)
+{
+	if (value == 0.0f) return;
+	zoomScale = value;
+}

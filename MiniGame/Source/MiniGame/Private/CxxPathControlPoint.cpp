@@ -13,26 +13,27 @@ UCxxPathControlPoint::UCxxPathControlPoint()
 	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
-	static ConstructorHelpers::FObjectFinder<UBlueprint> movementComponentClassFinder(
-			TEXT("/Script/Engine.Blueprint'/Game/Assets/Actor/PointTest/MovementMesh.MovementMesh'"));
-	if (movementComponentClassFinder.Succeeded())
-	{
-		movementComponentClass = movementComponentClassFinder.Object->GeneratedClass;
-	}
 	
-	static ConstructorHelpers::FObjectFinder<UBlueprint> tangentComponentAClassFinder(
-		TEXT("/Script/Engine.Blueprint'/Game/Assets/Actor/PointTest/TangentMeshA.TangentMeshA'"));
-	if (tangentComponentAClassFinder.Succeeded())
-	{
-		tangentComponentAClass = tangentComponentAClassFinder.Object->GeneratedClass;
-	}
-
-	static ConstructorHelpers::FObjectFinder<UBlueprint> tangentComponentBClassFinder(
-	TEXT("/Script/Engine.Blueprint'/Game/Assets/Actor/PointTest/TangentMeshB.TangentMeshB'"));
-	if (tangentComponentBClassFinder.Succeeded())
-	{
-		tangentComponentBClass = tangentComponentBClassFinder.Object->GeneratedClass;
-	}
+	// static ConstructorHelpers::FObjectFinder<UBlueprint> movementComponentClassFinder(
+	// 		TEXT("/Script/Engine.Blueprint'/Game/Assets/Actor/PointTest/MovementMesh.MovementMesh_C'"));
+	// if (movementComponentClassFinder.Succeeded())
+	// {
+	// movementComponentClass = movementComponentClassFinder.Object->GeneratedClass;
+	// }
+	
+	// static ConstructorHelpers::FObjectFinder<UBlueprint> tangentComponentAClassFinder(
+	// 	TEXT("/Script/Engine.Blueprint'/Game/Assets/Actor/PointTest/TangentMeshA.TangentMeshA_C'"));
+	// if (tangentComponentAClassFinder.Succeeded())
+	// {
+	// 	tangentComponentAClass = tangentComponentAClassFinder.Object->GeneratedClass;
+	// }
+	//
+	// static ConstructorHelpers::FObjectFinder<UBlueprint> tangentComponentBClassFinder(
+	// TEXT("/Script/Engine.Blueprint'/Game/Assets/Actor/PointTest/TangentMeshB.TangentMeshB_C'"));
+	// if (tangentComponentBClassFinder.Succeeded())
+	// {
+	// 	tangentComponentBClass = tangentComponentBClassFinder.Object->GeneratedClass;
+	// }
 }
 
 void UCxxPathControlPoint::CreateControlPointVisibleComponents()
@@ -72,6 +73,9 @@ void UCxxPathControlPoint::DeleteControlPointVisibleComponents()
 	if(movementControlComponent) movementControlComponent->DestroyComponent();
 	if(tangentControlAComponent) tangentControlAComponent->DestroyComponent();
 	if(tangentControlBComponent) tangentControlBComponent->DestroyComponent();
+	movementControlComponent = nullptr;
+	tangentControlAComponent = nullptr;
+	tangentControlBComponent = nullptr;
 }
 
 void UCxxPathControlPoint::Init(FVector loc, FVector tan, PointType t,
@@ -83,6 +87,10 @@ void UCxxPathControlPoint::Init(FVector loc, FVector tan, PointType t,
 	preSegment = pre;
 	nextSegment = next;
 	station = nullptr;
+	if(t != ManualPoint)
+	{
+		DeleteControlPointVisibleComponents();
+	}
 }
 
 void UCxxPathControlPoint::InitStationPoint(ACxxStation* s, FVector loc, FVector tan, PointType t,
@@ -100,6 +108,9 @@ void UCxxPathControlPoint::SetSegment(UCxxRailLineSegment* pre, UCxxRailLineSegm
 
 void UCxxPathControlPoint::UpdateMousePointTick()
 {
+	// 打印tangent
+	UE_LOG(LogTemp, Warning, TEXT("tangent: %s"), *tangent.ToString());
+	
 	// 更新鼠标切线和位置
 	ACxxPlayerController* cxxPC = Cast<ACxxPlayerController>(GetWorld()->GetFirstPlayerController());
 	float mouseX, mouseY;
@@ -111,27 +122,29 @@ void UCxxPathControlPoint::UpdateMousePointTick()
 	FHitResult hitRes;
 	FCollisionQueryParams cParams;
 	
-	if (GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 10000,
+	if (GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 100000,
 		ECC_GameTraceChannel3, cParams))
 	{
 		location = hitRes.Location;
-		// UE_LOG(LogTemp, Warning, TEXT("Location: %s"), *location.ToString());
+		if (location.Z < 150.0f) location.Z = 150.0f;
 		if(movementControlComponent){
-			movementControlComponent->SetWorldLocation(location + FVector(0, 0, 75));
-			if(movementControlComponent->GetAttachParent())
-			{
-				// UE_LOG(LogTemp, Warning, TEXT("AttachParent Location: %s"), *movementControlComponent->GetAttachParent()->GetComponentLocation().ToString());
-			}
-			// UE_LOG(LogTemp, Warning, TEXT("World Location: %s"), *movementControlComponent->GetComponentLocation().ToString());
+			movementControlComponent->SetWorldLocation(FVector(location.X, location.Y, (location.Z +
+				GetWorld()->GetFirstPlayerController()->GetPawn()->GetActorLocation().Z) / 2.0f));
 			UpdateSegment();
 		}
 	}else
 	{
-		location = FVector::ZeroVector;
+		if (preSegment && preSegment->startPoint)
+		{
+			location = preSegment->startPoint->location;
+		}else if (nextSegment && nextSegment->endPoint)
+		{
+			location = nextSegment->startPoint->location;
+		}else
+		{
+			location = FVector(0, 0, 0);
+		}
 	}
-
-	// 画一个debug sphere
-	// DrawDebugSphere(GetWorld(), location, 20.0f, 8, FColor::Red, false, 0.1f);
 }
 
 void UCxxPathControlPoint::UpdateMouseRotateTick(bool bRevert)
@@ -146,13 +159,14 @@ void UCxxPathControlPoint::UpdateMouseRotateTick(bool bRevert)
 	FHitResult hitRes;
 	FCollisionQueryParams cParams;
 	
-	if (GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 10000,
+	if (GetWorld()->LineTraceSingleByChannel(hitRes, wLocation, wLocation + wDirection * 100000,
 		ECC_GameTraceChannel3, cParams))
 	{
 		FVector direction = hitRes.Location - location;
 		if(beginDirectionLength < -0.1f) beginDirectionLength = direction.Length();
 		tangentIntensity += (direction.Length() - beginDirectionLength) * 10.0f;
 		beginDirectionLength = direction.Length();
+		direction = FVector(direction.X, direction.Y, 0);
 		direction.Normalize();
 		direction = bRevert?-direction:direction;
 
@@ -170,6 +184,13 @@ void UCxxPathControlPoint::UpdateMouseRotateTick(bool bRevert)
 void UCxxPathControlPoint::ResetTangentOperatorParam()
 {
 	beginDirectionLength = -1;
+}
+
+void UCxxPathControlPoint::Init(UClass* m1, UClass* t1, UClass* t2)
+{
+	movementComponentClass = m1;
+	tangentComponentAClass = t1;
+	tangentComponentBClass = t2;
 }
 
 PointType UCxxPathControlPoint::GetPointType()
@@ -238,6 +259,32 @@ void UCxxPathControlPoint::Destroy()
 	this->DestroyComponent();
 }
 
+void UCxxPathControlPoint::Delete()
+{
+	if(movementControlComponent)
+	{
+		movementControlComponent->DestroyComponent();
+	}
+	if(tangentControlAComponent)
+	{
+		tangentControlAComponent->DestroyComponent();
+	}
+	if(tangentControlBComponent)
+	{
+		tangentControlBComponent->DestroyComponent();
+	}
+	if (preSegment)
+	{
+		preSegment->startPoint->nextSegment = nextSegment;
+		if (nextSegment)
+		{
+			nextSegment->SetStartPoint(preSegment->startPoint);
+		}
+		preSegment->Destroy();
+	}
+	this->DestroyComponent();
+}
+
 // void UCxxPathControlPoint::ManualPointVisible()
 // {
 // 	
@@ -251,7 +298,7 @@ void UCxxPathControlPoint::BeginPlay()
 	{
 		CreateControlPointVisibleComponents();
 	}
-	// ...
+	playerUsedCamera = GetWorld()->GetFirstPlayerController()->GetPawn()->FindComponentByClass<UCameraComponent>();
 }
 
 
@@ -261,24 +308,17 @@ void UCxxPathControlPoint::TickComponent(float DeltaTime, ELevelTick TickType, F
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	if(type == ManualPoint)
 	{
-		// if(movementControlComponent)
-		// {
-		// 	// 输出世界坐标和时间
-		// 	UE_LOG(LogTemp, Warning, TEXT("World Location: %s, Time: %f"), *movementControlComponent->GetComponentLocation().ToString(), DeltaTime);
-		// }
+		// 动态调整大小
+		if (movementControlComponent && playerUsedCamera)  
+		{
+			float dist = playerUsedCamera->OrthoWidth / 10000.0f;
+			movementControlComponent->SetRelativeScale3D(FVector(1.2, 1.2, 1.2) * dist);
+		}
+		
 		if(!movementControlComponent && !tangentControlAComponent && !tangentControlBComponent)
 		{
 			CreateControlPointVisibleComponents();
 		}
-	}else
-	{
-		DeleteControlPointVisibleComponents();
-		// if(type == PointType::ManualPoint)
-		// {
-		// 	UpdateMousePointTick();
-		// }
 	}
-	// ManualPointVisible();
-	// ...
 }
 

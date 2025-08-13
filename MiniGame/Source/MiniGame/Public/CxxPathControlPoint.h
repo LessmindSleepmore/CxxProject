@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "CxxStation.h"
+#include "Camera/CameraComponent.h"
 #include "Components/ActorComponent.h"
 #include "CxxPathControlPoint.generated.h"
 
@@ -32,8 +33,9 @@ public:
 	UPROPERTY() UCxxRailLineSegment* preSegment = nullptr;
 	UPROPERTY() FVector location;
 	UPROPERTY() FVector tangent;
-	UPROPERTY() float tangentIntensity = 300.0f;
+	UPROPERTY() float tangentIntensity = 300.0f; 
 	UPROPERTY() float beginDirectionLength = -1.0f;
+	UPROPERTY() UCameraComponent* playerUsedCamera;
 	// ManualPoint使用的圆球
 	// UPROPERTY() UStaticMeshComponent* operatorComponent;
 	PointType type;
@@ -50,6 +52,7 @@ public:
 	void UpdateMousePointTick();
 	void UpdateMouseRotateTick(bool bRevert);
 	void ResetTangentOperatorParam();
+	void Init(UClass* m1, UClass* t1, UClass* t2);
 
 	UPROPERTY() ACxxStation* station = nullptr;
 	void Init(FVector loc, FVector tan, PointType t, UCxxRailLineSegment* pre, UCxxRailLineSegment* next);
@@ -58,12 +61,14 @@ public:
 	void SetSegment(UCxxRailLineSegment* pre, UCxxRailLineSegment* next);
 	// void SetType(PointType t, ACxxStation* s = nullptr);
 	PointType GetPointType();
-	void SetPointType(PointType t);
+	void SetPointType(PointType t); 
 	// void ManualPointVisible();
 
 	void UpdateSegment();
-	void SetVisible(bool bPointVisible);\
+	void SetVisible(bool bPointVisible);
+	// Destroy:直接删除 Delete:删除操作点后连接剩下的部分
 	void Destroy();
+	void Delete();
 
 protected:
 	// Called when the game starts

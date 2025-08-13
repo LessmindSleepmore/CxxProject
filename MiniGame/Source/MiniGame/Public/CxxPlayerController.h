@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "CxxDispatchManager.h"
+#include "Camera/CameraComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "CxxPlayerController.generated.h"
 
@@ -16,13 +17,18 @@ class MINIGAME_API ACxxPlayerController : public APlayerController
 {
 	GENERATED_BODY()
 
+	// 视角缩放
+	UPROPERTY() float zoomScale = 0.0f;
+
 	virtual void SetupInputComponent() override;
-
 	void SetMouseVisable();
-
 	void OnLeftMousePressed();
-	
 	void OnLeftMouseReleased();
+	
+	// 视角控制
+	void CameraMovementControl(float DeltaTime);
+	void CameraForwardControl(float DeltaTime);
+	void SetZoomScale(float value);
 
 	// void CheckMouseOnStation();
 	//
@@ -38,8 +44,10 @@ class MINIGAME_API ACxxPlayerController : public APlayerController
 	// UPROPERTY() TArray<FColor> railColors = {FColor::Green, FColor::Red, FColor::Blue};
 	// UPROPERTY() int railColorIdx = 0;
 
+	UPROPERTY() UCameraComponent* palyerCamera;
 	UPROPERTY() ACxxDispatchManager* dispatchManager = nullptr;
 	UPROPERTY() bool bGetDispatchManager = false;
+	
 
 	// bool bDrawRailLine = false;
 	

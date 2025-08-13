@@ -1,7 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "CxxPassenger.h"
+#include "CxxStation.h"
 
 // Sets default values
 ACxxPassenger::ACxxPassenger()
@@ -25,15 +25,50 @@ void ACxxPassenger::Tick(float DeltaTime)
 
 }
 
-bool ACxxPassenger::IsBoardingRequired(TArray<EStationType> path)
+bool ACxxPassenger::IsBoardingRequired(ACxxStation* nextStation)
 {
-	for (auto stationType : path)
+	if (path.Num() <= pathIdx + 1) return false;
+	if (nextStation == path[pathIdx + 1])
 	{
-		if (stationType == targetStationType)
-		{
-			return true;
-		}
+		FSlateBrush brush; 
+		brush.SetResourceObject(textureTA);
+		brush.ImageSize = FVector2D(12, 24);
+		passagerImage->SetBrush(brush);
+		return true;
 	}
 	return false;
+}
+
+bool ACxxPassenger::IsAlightingRequired(ACxxStation* nextStation)
+{
+	//最后一站了直接下车
+	if (path.Num() == pathIdx + 1)
+	{
+		FSlateBrush brush; 
+		brush.SetResourceObject(textureA);
+		brush.ImageSize = FVector2D(12, 24);
+		passagerImage->SetBrush(brush);
+		return true;
+	}
+	// 导航错误，先下车
+	if (path.Num() < pathIdx + 1) return true;
+	if (nextStation != path[pathIdx + 1])
+	{
+		FSlateBrush brush; 
+		brush.SetResourceObject(textureA);
+		brush.ImageSize = FVector2D(12, 24);
+		passagerImage->SetBrush(brush);
+		return true;
+	}
+	// pathIdx++;
+	return false;
+}
+
+void ACxxPassenger::DestroyPassenger()
+{
+	passagerImage->RemoveFromParent();
+	passagerImage->SetVisibility(ESlateVisibility::Collapsed);
+	passagerImage = nullptr;
+	Destroy();
 }
 

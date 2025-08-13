@@ -3,9 +3,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Components/Image.h"
 #include "GameFramework/Actor.h"
 #include "CxxPassenger.generated.h"
 
+class ACxxStation;
 // 商业区 居住区 文化区 休闲区
 UENUM()
 enum class EStationType : uint8
@@ -26,7 +28,12 @@ public:
 	ACxxPassenger();
 
 	UPROPERTY(EditAnywhere) EStationType targetStationType;
-
+	UPROPERTY() TArray<ACxxStation*> path;
+	UPROPERTY() UImage* passagerImage = nullptr;
+	UPROPERTY() UTexture2D* textureA = nullptr;
+	UPROPERTY() UTexture2D* textureTA = nullptr;
+	UPROPERTY() int pathIdx = 0;
+	
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -34,6 +41,7 @@ protected:
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
-	bool IsBoardingRequired(TArray<EStationType> path);
-	bool IsAlightingRequired(TArray<EStationType> path);
+	bool IsBoardingRequired(ACxxStation* nextStation);
+	bool IsAlightingRequired(ACxxStation* nextStation);
+	void DestroyPassenger();
 };
